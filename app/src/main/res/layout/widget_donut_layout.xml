@@ -1,0 +1,245 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:padding="14dp"
+    android:background="@drawable/widget_bg_card">
+
+    <!-- Top Header -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical">
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="vertical">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Spending Breakdown"
+                android:textSize="14sp"
+                android:textStyle="bold"
+                android:textColor="#F8FAFC" />
+
+            <TextView
+                android:id="@+id/widget_period_label"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="1dp"
+                android:text="This Month • All"
+                android:textSize="11sp"
+                android:textColor="#94A3B8"
+                android:maxLines="1"
+                android:ellipsize="end" />
+        </LinearLayout>
+
+        <ImageView
+            android:id="@+id/widget_btn_add"
+            android:layout_width="28dp"
+            android:layout_height="28dp"
+            android:src="@drawable/ic_shortcut_add"
+            android:background="@drawable/widget_add_btn_bg"
+            android:padding="5dp"
+            android:contentDescription="Add Transaction" />
+    </LinearLayout>
+
+    <!-- Main Content: Donut Chart Image + Breakdown Legend -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:layout_marginTop="8dp">
+
+        <!-- Dynamic High-Res Donut Canvas Bitmap -->
+        <ImageView
+            android:id="@+id/widget_donut_image"
+            android:layout_width="110dp"
+            android:layout_height="110dp"
+            android:scaleType="fitCenter"
+            android:contentDescription="Breakdown Donut Chart" />
+
+        <LinearLayout
+            android:id="@+id/widget_legend_container"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="vertical"
+            android:layout_marginStart="10dp">
+
+            <!-- Category Row 1 -->
+            <LinearLayout
+                android:id="@+id/widget_cat_row_1"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:visibility="gone"
+                android:layout_marginBottom="4dp">
+
+                <TextView
+                    android:id="@+id/widget_cat_dot_1"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="● "
+                    android:textSize="12sp"
+                    android:textColor="#4F46E5" />
+
+                <TextView
+                    android:id="@+id/widget_cat_name_1"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="Food"
+                    android:textSize="11.5sp"
+                    android:textStyle="bold"
+                    android:textColor="#F1F5F9"
+                    android:maxLines="1"
+                    android:ellipsize="end" />
+
+                <TextView
+                    android:id="@+id/widget_cat_amount_1"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="45% • ₹4.5k"
+                    android:textSize="11.5sp"
+                    android:textColor="#CBD5E1" />
+            </LinearLayout>
+
+            <!-- Category Row 2 -->
+            <LinearLayout
+                android:id="@+id/widget_cat_row_2"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:visibility="gone"
+                android:layout_marginBottom="4dp">
+
+                <TextView
+                    android:id="@+id/widget_cat_dot_2"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="● "
+                    android:textSize="12sp"
+                    android:textColor="#EF4444" />
+
+                <TextView
+                    android:id="@+id/widget_cat_name_2"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="Transport"
+                    android:textSize="11.5sp"
+                    android:textStyle="bold"
+                    android:textColor="#F1F5F9"
+                    android:maxLines="1"
+                    android:ellipsize="end" />
+
+                <TextView
+                    android:id="@+id/widget_cat_amount_2"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="25% • ₹2.5k"
+                    android:textSize="11.5sp"
+                    android:textColor="#CBD5E1" />
+            </LinearLayout>
+
+            <!-- Category Row 3 -->
+            <LinearLayout
+                android:id="@+id/widget_cat_row_3"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:visibility="gone"
+                android:layout_marginBottom="4dp">
+
+                <TextView
+                    android:id="@+id/widget_cat_dot_3"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="● "
+                    android:textSize="12sp"
+                    android:textColor="#10B981" />
+
+                <TextView
+                    android:id="@+id/widget_cat_name_3"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="Bills"
+                    android:textSize="11.5sp"
+                    android:textStyle="bold"
+                    android:textColor="#F1F5F9"
+                    android:maxLines="1"
+                    android:ellipsize="end" />
+
+                <TextView
+                    android:id="@+id/widget_cat_amount_3"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="15% • ₹1.5k"
+                    android:textSize="11.5sp"
+                    android:textColor="#CBD5E1" />
+            </LinearLayout>
+
+            <!-- Category Row 4 -->
+            <LinearLayout
+                android:id="@+id/widget_cat_row_4"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:visibility="gone">
+
+                <TextView
+                    android:id="@+id/widget_cat_dot_4"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="● "
+                    android:textSize="12sp"
+                    android:textColor="#F59E0B" />
+
+                <TextView
+                    android:id="@+id/widget_cat_name_4"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="Others"
+                    android:textSize="11.5sp"
+                    android:textStyle="bold"
+                    android:textColor="#F1F5F9"
+                    android:maxLines="1"
+                    android:ellipsize="end" />
+
+                <TextView
+                    android:id="@+id/widget_cat_amount_4"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="15% • ₹1.5k"
+                    android:textSize="11.5sp"
+                    android:textColor="#CBD5E1" />
+            </LinearLayout>
+
+            <!-- Empty State Text if No Expenses -->
+            <TextView
+                android:id="@+id/widget_empty_text"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="No expenses recorded for this period."
+                android:textSize="11.5sp"
+                android:textColor="#64748B"
+                android:visibility="visible" />
+        </LinearLayout>
+    </LinearLayout>
+
+</LinearLayout>

@@ -1,0 +1,6 @@
+{
+  "name": "Bachat",
+  "description": "Minimal expense and budget tracker with goal-based budgeting, spending analytics, and transaction history.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

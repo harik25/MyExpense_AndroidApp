@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name">Bachat</string>
+    <string name="shortcut_add_transaction_short">Add Transaction</string>
+    <string name="shortcut_add_transaction_long">Quickly Add New Transaction</string>
+</resources>
