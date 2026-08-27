@@ -126,6 +126,68 @@ data class Goal(
   val targetAmount: Double
 )
 
+@Entity(tableName = "recurring_bills")
+data class RecurringBill(
+  @PrimaryKey(autoGenerate = true) val id: Long = 0,
+  val title: String,
+  val amount: Double,
+  val category: String = "Housing",
+  val dueDayOfMonth: Int = 1, // 1 to 31
+  val cadence: String = "Monthly", // "Monthly", "Weekly", "Yearly"
+  val accountTag: String = "UPI",
+  val note: String = "",
+  val isAutoPay: Boolean = false,
+  val lastPaidMonthKey: String = "", // e.g. "2026-08" to indicate it has been paid for this month
+  val isPaused: Boolean = false
+) {
+  fun isPaidForCurrentMonth(currentMonthKey: String): Boolean {
+    return lastPaidMonthKey == currentMonthKey
+  }
+}
+
+data class CategoryBudgetInsight(
+  val category: String,
+  val budgetLimit: Double,
+  val spentAmount: Double,
+  val remainingAmount: Double,
+  val percentageUsed: Double,
+  val status: GoalStatus,
+  val goalId: Long? = null
+)
+
+data class OverspendAlert(
+  val category: String,
+  val budgetLimit: Double,
+  val spentAmount: Double,
+  val overspendAmount: Double,
+  val percentageUsed: Double,
+  val isExceeded: Boolean // true: >=100% (danger), false: >=80% (warning)
+)
+
+data class CategoryShift(
+  val category: String,
+  val currentMonthAmount: Double,
+  val lastMonthAmount: Double,
+  val diffAmount: Double,
+  val percentageChange: Double,
+  val isIncrease: Boolean
+)
+
+data class MonthOverMonthInsight(
+  val thisMonthTotal: Double = 0.0,
+  val lastMonthTotal: Double = 0.0,
+  val diffAmount: Double = 0.0,
+  val percentageChange: Double = 0.0,
+  val isLower: Boolean = true,
+  val thisMonthDailyAvg: Double = 0.0,
+  val lastMonthDailyAvg: Double = 0.0,
+  val projectedMonthEndTotal: Double = 0.0,
+  val peakSpendDayLabel: String = "",
+  val peakSpendDayAmount: Double = 0.0,
+  val categoryShifts: List<CategoryShift> = emptyList(),
+  val keyTakeaways: List<String> = emptyList()
+)
+
 fun formatRupee(amount: Double, showDecimals: Boolean = false): String {
   val formatter = NumberFormat.getCurrencyInstance(Locale("en", "IN"))
   formatter.maximumFractionDigits = if (showDecimals && amount % 1.0 != 0.0) 2 else 0

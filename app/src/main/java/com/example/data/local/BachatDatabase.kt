@@ -8,6 +8,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 import com.example.data.model.CategoryItem
 import com.example.data.model.DEFAULT_CATEGORIES
 import com.example.data.model.Goal
+import com.example.data.model.RecurringBill
 import com.example.data.model.Transaction
 import com.example.data.model.TransactionType
 import kotlinx.coroutines.CoroutineScope
@@ -16,14 +17,15 @@ import kotlinx.coroutines.launch
 import java.util.Calendar
 
 @Database(
-  entities = [Transaction::class, Goal::class, CategoryItem::class],
-  version = 5,
+  entities = [Transaction::class, Goal::class, CategoryItem::class, RecurringBill::class],
+  version = 6,
   exportSchema = false
 )
 abstract class BachatDatabase : RoomDatabase() {
   abstract fun transactionDao(): TransactionDao
   abstract fun goalDao(): GoalDao
   abstract fun categoryDao(): CategoryDao
+  abstract fun recurringBillDao(): RecurringBillDao
 
   companion object {
     @Volatile
@@ -65,7 +67,8 @@ abstract class BachatDatabase : RoomDatabase() {
             populateInitialData(
               database.transactionDao(),
               database.goalDao(),
-              database.categoryDao()
+              database.categoryDao(),
+              database.recurringBillDao()
             )
           }
         }
@@ -75,7 +78,8 @@ abstract class BachatDatabase : RoomDatabase() {
     suspend fun populateInitialData(
       transactionDao: TransactionDao,
       goalDao: GoalDao,
-      categoryDao: CategoryDao
+      categoryDao: CategoryDao,
+      recurringBillDao: RecurringBillDao
     ) {
       categoryDao.insertCategories(DEFAULT_CATEGORIES)
       val now = Calendar.getInstance()
@@ -174,11 +178,68 @@ abstract class BachatDatabase : RoomDatabase() {
           cadence = "monthly",
           category = "Food",
           targetAmount = 5000.0
+        ),
+        Goal(
+          title = "Transport Budget",
+          cadence = "monthly",
+          category = "Transport",
+          targetAmount = 2500.0
+        ),
+        Goal(
+          title = "Personal/Health Budget",
+          cadence = "monthly",
+          category = "Personal/Health",
+          targetAmount = 2000.0
+        )
+      )
+
+      val initialBills = listOf(
+        RecurringBill(
+          title = "Netflix Subscription",
+          amount = 149.0,
+          category = "Personal/Health",
+          dueDayOfMonth = 1,
+          cadence = "Monthly",
+          accountTag = "UPI",
+          note = "Standard plan",
+          isAutoPay = true,
+          lastPaidMonthKey = String.format(java.util.Locale.US, "%d-%02d", year, month + 1)
+        ),
+        RecurringBill(
+          title = "Airtel Broadband WiFi",
+          amount = 799.0,
+          category = "Housing",
+          dueDayOfMonth = 10,
+          cadence = "Monthly",
+          accountTag = "UPI",
+          note = "Home fiber internet",
+          isAutoPay = false
+        ),
+        RecurringBill(
+          title = "Apartment Maintenance / Rent",
+          amount = 12000.0,
+          category = "Housing",
+          dueDayOfMonth = 5,
+          cadence = "Monthly",
+          accountTag = "Bank",
+          note = "Monthly rent & maintenance",
+          isAutoPay = false
+        ),
+        RecurringBill(
+          title = "Cult.fit / Gym Membership",
+          amount = 1500.0,
+          category = "Personal/Health",
+          dueDayOfMonth = 15,
+          cadence = "Monthly",
+          accountTag = "UPI",
+          note = "Fitness subscription",
+          isAutoPay = false
         )
       )
 
       transactionDao.insertTransactions(initialTransactions)
       goalDao.insertGoals(initialGoals)
+      recurringBillDao.insertBills(initialBills)
     }
   }
 }

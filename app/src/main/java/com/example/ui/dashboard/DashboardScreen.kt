@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
@@ -80,13 +81,25 @@ import com.example.ui.theme.BachatSurface
 import com.example.ui.theme.BachatTextPrimary
 import com.example.ui.theme.BachatTextSecondary
 
+import com.example.data.model.RecurringBill
+import com.example.ui.components.BadgePill
+import com.example.ui.components.CategoryBudgetProgressCard
+import com.example.ui.components.MonthOverMonthInsightsCard
+import com.example.ui.components.OverspendAlertBanner
+import com.example.ui.components.RecurringBillRowItem
+import com.example.ui.theme.BachatWarning
+import com.example.ui.theme.BachatWarningTint
+
 @Composable
 fun DashboardScreen(
   uiState: DashboardUiState,
   showGoals: Boolean = true,
+  showBills: Boolean = true,
   onNavigateToGoals: () -> Unit,
   onNavigateToSettings: () -> Unit,
   onNavigateToHistory: () -> Unit = {},
+  onNavigateToBills: () -> Unit = {},
+  onPayBill: (RecurringBill) -> Unit = {},
   onOpenNewTransaction: () -> Unit,
   onEditTransaction: (Transaction) -> Unit,
   onDeleteTransaction: (Transaction) -> Unit,
@@ -97,14 +110,20 @@ fun DashboardScreen(
   var selectedTxForAction by remember { mutableStateOf<Transaction?>(null) }
   var selectedGoalForAction by remember { mutableStateOf<Goal?>(null) }
 
-  LazyColumn(
-    modifier = modifier
+  Box(
+    modifier = Modifier
       .fillMaxSize()
-      .background(Color.White)
-      .padding(horizontal = 20.dp)
-      .testTag("dashboard_screen"),
-    verticalArrangement = Arrangement.spacedBy(20.dp)
+      .background(Color.White),
+    contentAlignment = Alignment.TopCenter
   ) {
+    LazyColumn(
+      modifier = modifier
+        .fillMaxSize()
+        .widthIn(max = 680.dp)
+        .padding(horizontal = 20.dp)
+        .testTag("dashboard_screen"),
+      verticalArrangement = Arrangement.spacedBy(20.dp)
+    ) {
     item {
       Spacer(modifier = Modifier.height(4.dp))
       // Header: Dashboard Title + Settings Gear Icon
@@ -198,6 +217,49 @@ fun DashboardScreen(
               value = formatRupee(uiState.monthExpense),
               valueColor = if (uiState.monthExpense > 0) BachatDanger else BachatTextPrimary
             )
+          }
+        }
+      }
+    }
+
+    // Due & Upcoming Bills Section (Only shown if enabled and there are bills due in <= 2 days or overdue)
+    if (showBills && uiState.upcomingBills.isNotEmpty()) {
+      item {
+        Column(modifier = Modifier.fillMaxWidth().testTag("dashboard_recurring_bills_section")) {
+          Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+          ) {
+            Text(
+              text = "Due & Upcoming Bills",
+              fontSize = 20.sp,
+              fontWeight = FontWeight.Bold,
+              color = BachatTextPrimary
+            )
+
+            Text(
+              text = "See All",
+              fontSize = 14.sp,
+              fontWeight = FontWeight.SemiBold,
+              color = BachatAccentIndigo,
+              modifier = Modifier
+                .clickable { onNavigateToBills() }
+                .padding(4.dp)
+            )
+          }
+
+          Spacer(modifier = Modifier.height(10.dp))
+
+          Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            uiState.upcomingBills.take(3).forEach { bill ->
+              RecurringBillRowItem(
+                bill = bill,
+                currentMonthKey = uiState.currentMonthKey,
+                onPayClick = { onPayBill(bill) },
+                onClick = { onNavigateToBills() }
+              )
+            }
           }
         }
       }
@@ -338,4 +400,5 @@ fun DashboardScreen(
       onDelete = { onDeleteGoal(goal) }
     )
   }
+}
 }

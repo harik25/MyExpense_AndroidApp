@@ -37,6 +37,9 @@ interface TransactionDao {
   @Query("DELETE FROM transactions WHERE id = :id")
   suspend fun deleteTransactionById(id: Long)
 
+  @Query("UPDATE transactions SET category = :newCategory WHERE category = :oldCategory")
+  suspend fun updateCategoryName(oldCategory: String, newCategory: String)
+
   @Query("DELETE FROM transactions")
   suspend fun clearAll()
 }
@@ -63,6 +66,9 @@ interface GoalDao {
 
   @Query("DELETE FROM goals WHERE id = :id")
   suspend fun deleteGoalById(id: Long)
+
+  @Query("UPDATE goals SET category = :newCategory WHERE category = :oldCategory")
+  suspend fun updateCategoryName(oldCategory: String, newCategory: String)
 
   @Query("DELETE FROM goals")
   suspend fun clearAll()
@@ -98,6 +104,42 @@ interface CategoryDao {
   suspend fun deleteCategoryById(id: Long)
 
   @Query("DELETE FROM custom_categories")
+  suspend fun clearAll()
+}
+
+@Dao
+interface RecurringBillDao {
+  @Query("SELECT * FROM recurring_bills ORDER BY dueDayOfMonth ASC, id ASC")
+  fun getAllBills(): Flow<List<com.example.data.model.RecurringBill>>
+
+  @Query("SELECT * FROM recurring_bills WHERE isPaused = 0 ORDER BY dueDayOfMonth ASC")
+  fun getActiveBills(): Flow<List<com.example.data.model.RecurringBill>>
+
+  @Query("SELECT * FROM recurring_bills WHERE id = :id")
+  suspend fun getBillById(id: Long): com.example.data.model.RecurringBill?
+
+  @Insert(onConflict = OnConflictStrategy.REPLACE)
+  suspend fun insertBill(bill: com.example.data.model.RecurringBill): Long
+
+  @Insert(onConflict = OnConflictStrategy.REPLACE)
+  suspend fun insertBills(bills: List<com.example.data.model.RecurringBill>)
+
+  @Update
+  suspend fun updateBill(bill: com.example.data.model.RecurringBill)
+
+  @Delete
+  suspend fun deleteBill(bill: com.example.data.model.RecurringBill)
+
+  @Query("DELETE FROM recurring_bills WHERE id = :id")
+  suspend fun deleteBillById(id: Long)
+
+  @Query("UPDATE recurring_bills SET lastPaidMonthKey = :monthKey WHERE id = :id")
+  suspend fun markBillPaid(id: Long, monthKey: String)
+
+  @Query("UPDATE recurring_bills SET category = :newCategory WHERE category = :oldCategory")
+  suspend fun updateCategoryName(oldCategory: String, newCategory: String)
+
+  @Query("DELETE FROM recurring_bills")
   suspend fun clearAll()
 }
 

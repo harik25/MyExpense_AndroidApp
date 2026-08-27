@@ -2,11 +2,18 @@ package com.example.ui.navigation
 
 import android.widget.Toast
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -23,6 +30,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
@@ -52,7 +60,11 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
@@ -66,9 +78,12 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.example.data.model.Goal
+import com.example.data.model.RecurringBill
 import com.example.data.model.Transaction
 import com.example.ui.BachatUiEvent
 import com.example.ui.BachatViewModel
+import com.example.ui.bills.NewRecurringBillSheet
+import com.example.ui.bills.RecurringBillsScreen
 import com.example.ui.dashboard.DashboardScreen
 import com.example.ui.goals.AllGoalsScreen
 import com.example.ui.goals.NewGoalSheet
@@ -86,6 +101,7 @@ sealed class Screen(val route: String) {
   object Dashboard : Screen("dashboard")
   object History : Screen("history")
   object AllGoals : Screen("all_goals")
+  object RecurringBills : Screen("recurring_bills")
   object Settings : Screen("settings")
   object PinSetup : Screen("pin_setup")
   object PinUnlock : Screen("pin_unlock")
@@ -107,6 +123,7 @@ fun BachatMainContainer(
   val allGoals by viewModel.allGoals.collectAsStateWithLifecycle()
   val allTransactions by viewModel.allTransactions.collectAsStateWithLifecycle()
   val allCategories by viewModel.allCategories.collectAsStateWithLifecycle()
+  val allRecurringBills by viewModel.allRecurringBills.collectAsStateWithLifecycle()
   val appSettings by viewModel.appSettings.collectAsStateWithLifecycle()
   val filterState by viewModel.filterState.collectAsStateWithLifecycle()
   val selectedTab by viewModel.selectedTab.collectAsStateWithLifecycle()
@@ -124,6 +141,9 @@ fun BachatMainContainer(
 
   var showNewGoalSheet by remember { mutableStateOf(false) }
   var editingGoal by remember { mutableStateOf<Goal?>(null) }
+
+  var showNewBillSheet by remember { mutableStateOf(false) }
+  var editingBill by remember { mutableStateOf<RecurringBill?>(null) }
 
   var pendingUnlockCallback by remember { mutableStateOf<(() -> Unit)?>(null) }
 
@@ -183,7 +203,9 @@ fun BachatMainContainer(
                 DashboardScreen(
                   uiState = dashboardState,
                   showGoals = appSettings.showGoalsOnDashboard,
+                  showBills = appSettings.showBillsOnDashboard,
                   onNavigateToGoals = { navController.navigate(Screen.AllGoals.route) },
+                  onNavigateToBills = { navController.navigate(Screen.RecurringBills.route) },
                   onNavigateToSettings = { navController.navigate(Screen.Settings.route) },
                   onNavigateToHistory = { scope.launch { pagerState.animateScrollToPage(1) } },
                   onOpenNewTransaction = {
@@ -199,7 +221,8 @@ fun BachatMainContainer(
                     editingGoal = goal
                     showNewGoalSheet = true
                   },
-                  onDeleteGoal = { goal -> viewModel.deleteGoal(goal) }
+                  onDeleteGoal = { goal -> viewModel.deleteGoal(goal) },
+                  onPayBill = { bill -> viewModel.payRecurringBill(bill) }
                 )
               }
               1 -> {
@@ -209,6 +232,7 @@ fun BachatMainContainer(
                   analyticsState = analyticsState,
                   filteredTransactions = filteredTransactions,
                   filterState = filterState,
+                  categories = allCategories,
                   isSecretLocked = appSettings.secretLockEnabled && appSettings.pinHash.isNotEmpty(),
                   onUpdateFilter = { viewModel.updateFilter(it) },
                   onResetFilter = { viewModel.resetFilter() },
@@ -252,14 +276,17 @@ fun BachatMainContainer(
           SettingsScreen(
             appSettings = appSettings,
             categories = allCategories,
+            bills = allRecurringBills,
             onBackClick = { navController.popBackStack() },
             onNavigateToPinSetup = { navController.navigate(Screen.PinSetup.route) },
             onNavigateToAllGoals = { navController.navigate(Screen.AllGoals.route) },
+            onNavigateToBills = { navController.navigate(Screen.RecurringBills.route) },
             onSetThemeMode = { viewModel.setThemeMode(it) },
             onSetSecretLockEnabled = { viewModel.setSecretLockEnabled(it) },
             onSetUseBiometric = { viewModel.setUseBiometric(it) },
             onSetGoalAlertsEnabled = { viewModel.setGoalAlertsEnabled(it) },
             onSetShowGoalsOnDashboard = { viewModel.setShowGoalsOnDashboard(it) },
+            onSetShowBillsOnDashboard = { viewModel.setShowBillsOnDashboard(it) },
             onAddCategory = { name, type, icon, color -> viewModel.addCategory(name, type, icon, color) },
             onUpdateCategory = { viewModel.updateCategory(it) },
             onDeleteCategory = { viewModel.deleteCategory(it) },
@@ -270,6 +297,25 @@ fun BachatMainContainer(
                 Toast.makeText(context, it, Toast.LENGTH_SHORT).show()
               })
             }
+          )
+        }
+
+        // 5. RECURRING BILLS
+        composable(Screen.RecurringBills.route) {
+          RecurringBillsScreen(
+            bills = allRecurringBills,
+            categories = allCategories,
+            onBackClick = { navController.popBackStack() },
+            onOpenNewBill = {
+              editingBill = null
+              showNewBillSheet = true
+            },
+            onEditBill = { bill ->
+              editingBill = bill
+              showNewBillSheet = true
+            },
+            onDeleteBill = { bill -> viewModel.deleteRecurringBill(bill) },
+            onPayBill = { bill -> viewModel.payRecurringBill(bill) }
           )
         }
 
@@ -320,117 +366,201 @@ fun BachatMainContainer(
       }
     }
 
-    // Overlapping Bottom Bar + Floating Action Button (FAB)
+    // Dynamic Floating Bottom Bar + Floating Action Button (FAB)
     if (isBottomNavVisible) {
+      val fabInteractionSource = remember { MutableInteractionSource() }
+      val isFabPressed by fabInteractionSource.collectIsPressedAsState()
+      val fabScale by animateFloatAsState(
+        targetValue = if (isFabPressed) 0.88f else 1.0f,
+        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMedium),
+        label = "fab_scale"
+      )
+      val fabRotation by animateFloatAsState(
+        targetValue = if (isFabPressed) 45f else 0f,
+        animationSpec = spring(dampingRatio = 0.7f, stiffness = Spring.StiffnessMedium),
+        label = "fab_rotation"
+      )
+
       Box(
         modifier = Modifier
           .align(Alignment.BottomCenter)
           .fillMaxWidth()
+          .widthIn(max = 440.dp)
           .padding(
             bottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding() + 8.dp,
             start = 24.dp,
             end = 24.dp
           )
       ) {
-        // Bottom Bar Surface
+        // Bottom Bar Surface Dock
         Surface(
           modifier = Modifier
             .fillMaxWidth()
-            .height(64.dp)
-            .shadow(12.dp, RoundedCornerShape(32.dp)),
-          shape = RoundedCornerShape(32.dp),
+            .height(68.dp)
+            .shadow(
+              elevation = 14.dp,
+              shape = RoundedCornerShape(36.dp),
+              spotColor = Color(0x330F172A),
+              ambientColor = Color(0x1F0F172A)
+            ),
+          shape = RoundedCornerShape(36.dp),
           color = Color.White,
-          tonalElevation = 6.dp
+          border = BorderStroke(1.dp, Color(0xFF0F172A).copy(alpha = 0.08f)),
+          tonalElevation = 4.dp
         ) {
           Row(
             modifier = Modifier
               .fillMaxSize()
-              .padding(horizontal = 24.dp),
+              .padding(horizontal = 14.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
           ) {
-            // Home Item
+            // 1. Home Item with Dynamic Active Capsule
             val isHome = pagerState.currentPage == 0
-            Column(
-              horizontalAlignment = Alignment.CenterHorizontally,
+            val homeScale by animateFloatAsState(
+              targetValue = if (isHome) 1.08f else 1.0f,
+              animationSpec = spring(dampingRatio = 0.65f, stiffness = Spring.StiffnessMedium),
+              label = "home_scale"
+            )
+            val homeIconTint by animateColorAsState(
+              targetValue = if (isHome) BachatInk else BachatTextSecondary,
+              label = "home_color"
+            )
+            val homeBgAlpha by animateFloatAsState(
+              targetValue = if (isHome) 1f else 0f,
+              animationSpec = spring(stiffness = Spring.StiffnessLow),
+              label = "home_bg_alpha"
+            )
+
+            Box(
               modifier = Modifier
+                .weight(1f)
+                .clip(RoundedCornerShape(24.dp))
+                .background(Color(0xFF0F172A).copy(alpha = 0.06f * homeBgAlpha))
                 .clickable(
                   interactionSource = remember { MutableInteractionSource() },
                   indication = null
                 ) {
                   scope.launch { pagerState.animateScrollToPage(0) }
                 }
-                .padding(8.dp)
-                .testTag("nav_home")
+                .padding(vertical = 8.dp)
+                .testTag("nav_home"),
+              contentAlignment = Alignment.Center
             ) {
-              Icon(
-                imageVector = if (isHome) Icons.Filled.Home else Icons.Outlined.Home,
-                contentDescription = "Home",
-                tint = if (isHome) BachatInk else BachatTextSecondary,
-                modifier = Modifier.size(24.dp)
-              )
-              Text(
-                text = "Home",
-                fontSize = 11.sp,
-                fontWeight = if (isHome) FontWeight.Bold else FontWeight.Medium,
-                color = if (isHome) BachatInk else BachatTextSecondary
-              )
+              Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier.scale(homeScale)
+              ) {
+                Icon(
+                  imageVector = if (isHome) Icons.Filled.Home else Icons.Outlined.Home,
+                  contentDescription = "Home",
+                  tint = homeIconTint,
+                  modifier = Modifier.size(24.dp)
+                )
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                  text = "Home",
+                  fontSize = 11.5.sp,
+                  fontWeight = if (isHome) FontWeight.Bold else FontWeight.Medium,
+                  color = homeIconTint
+                )
+              }
             }
 
-            Spacer(modifier = Modifier.width(64.dp)) // Space for FAB in center
+            // Center Gap for FAB
+            Spacer(modifier = Modifier.width(68.dp))
 
-            // History Item
+            // 2. History Item with Dynamic Active Capsule
             val isHistory = pagerState.currentPage == 1
-            Column(
-              horizontalAlignment = Alignment.CenterHorizontally,
+            val historyScale by animateFloatAsState(
+              targetValue = if (isHistory) 1.08f else 1.0f,
+              animationSpec = spring(dampingRatio = 0.65f, stiffness = Spring.StiffnessMedium),
+              label = "history_scale"
+            )
+            val historyIconTint by animateColorAsState(
+              targetValue = if (isHistory) BachatInk else BachatTextSecondary,
+              label = "history_color"
+            )
+            val historyBgAlpha by animateFloatAsState(
+              targetValue = if (isHistory) 1f else 0f,
+              animationSpec = spring(stiffness = Spring.StiffnessLow),
+              label = "history_bg_alpha"
+            )
+
+            Box(
               modifier = Modifier
+                .weight(1f)
+                .clip(RoundedCornerShape(24.dp))
+                .background(Color(0xFF0F172A).copy(alpha = 0.06f * historyBgAlpha))
                 .clickable(
                   interactionSource = remember { MutableInteractionSource() },
                   indication = null
                 ) {
                   scope.launch { pagerState.animateScrollToPage(1) }
                 }
-                .padding(8.dp)
-                .testTag("nav_history")
+                .padding(vertical = 8.dp)
+                .testTag("nav_history"),
+              contentAlignment = Alignment.Center
             ) {
-              Icon(
-                imageVector = if (isHistory) Icons.Filled.BarChart else Icons.Outlined.BarChart,
-                contentDescription = "History",
-                tint = if (isHistory) BachatInk else BachatTextSecondary,
-                modifier = Modifier.size(24.dp)
-              )
-              Text(
-                text = "History",
-                fontSize = 11.sp,
-                fontWeight = if (isHistory) FontWeight.Bold else FontWeight.Medium,
-                color = if (isHistory) BachatInk else BachatTextSecondary
-              )
+              Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier.scale(historyScale)
+              ) {
+                Icon(
+                  imageVector = if (isHistory) Icons.Filled.BarChart else Icons.Outlined.BarChart,
+                  contentDescription = "History",
+                  tint = historyIconTint,
+                  modifier = Modifier.size(24.dp)
+                )
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                  text = "History",
+                  fontSize = 11.5.sp,
+                  fontWeight = if (isHistory) FontWeight.Bold else FontWeight.Medium,
+                  color = historyIconTint
+                )
+              }
             }
           }
         }
 
-        // Floating Action Button in Center
-        FloatingActionButton(
-          onClick = {
-            editingTransaction = null
-            showNewTransactionSheet = true
-          },
-          shape = CircleShape,
-          containerColor = BachatInk,
-          contentColor = Color.White,
-          elevation = FloatingActionButtonDefaults.elevation(defaultElevation = 8.dp),
+        // Floating Action Button in Center with Dynamic Scale & Obsidian Styling
+        Box(
           modifier = Modifier
-            .size(64.dp)
             .align(Alignment.Center)
             .offset(y = (-14).dp)
-            .testTag("fab_new_transaction")
+            .scale(fabScale)
         ) {
-          Icon(
-            imageVector = Icons.Default.Add,
-            contentDescription = "Add Transaction",
-            tint = Color.White,
-            modifier = Modifier.size(32.dp)
-          )
+          FloatingActionButton(
+            onClick = {
+              editingTransaction = null
+              showNewTransactionSheet = true
+            },
+            shape = CircleShape,
+            containerColor = BachatInk,
+            contentColor = Color.White,
+            interactionSource = fabInteractionSource,
+            elevation = FloatingActionButtonDefaults.elevation(
+              defaultElevation = 8.dp,
+              pressedElevation = 2.dp
+            ),
+            modifier = Modifier
+              .size(62.dp)
+              .border(
+                border = BorderStroke(2.dp, Brush.verticalGradient(listOf(Color(0x33FFFFFF), Color(0x00FFFFFF)))),
+                shape = CircleShape
+              )
+              .testTag("fab_new_transaction")
+          ) {
+            Icon(
+              imageVector = Icons.Default.Add,
+              contentDescription = "Add Transaction",
+              tint = Color.White,
+              modifier = Modifier
+                .size(30.dp)
+                .rotate(fabRotation)
+            )
+          }
         }
       }
     }
@@ -482,6 +612,7 @@ fun BachatMainContainer(
     if (showNewGoalSheet) {
       NewGoalSheet(
         editingGoal = editingGoal,
+        categories = allCategories,
         onDismiss = {
           showNewGoalSheet = false
           editingGoal = null
@@ -501,6 +632,47 @@ fun BachatMainContainer(
           }
           showNewGoalSheet = false
           editingGoal = null
+        }
+      )
+    }
+
+    // Modal New / Edit Recurring Bill Sheet
+    if (showNewBillSheet) {
+      NewRecurringBillSheet(
+        editingBill = editingBill,
+        categories = allCategories,
+        onDismiss = {
+          showNewBillSheet = false
+          editingBill = null
+        },
+        onSave = { title, amount, category, dueDay, cadence, tag, note, isAutoPay ->
+          if (editingBill != null) {
+            viewModel.updateRecurringBill(
+              editingBill!!.copy(
+                title = title,
+                amount = amount,
+                category = category,
+                dueDayOfMonth = dueDay,
+                cadence = cadence,
+                accountTag = tag,
+                note = note,
+                isAutoPay = isAutoPay
+              )
+            )
+          } else {
+            viewModel.addRecurringBill(
+              title = title,
+              amount = amount,
+              category = category,
+              dueDayOfMonth = dueDay,
+              cadence = cadence,
+              accountTag = tag,
+              note = note,
+              isAutoPay = isAutoPay
+            )
+          }
+          showNewBillSheet = false
+          editingBill = null
         }
       )
     }

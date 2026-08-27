@@ -64,8 +64,7 @@ import coil.compose.AsyncImage
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import com.example.data.model.CategoryItem
-import com.example.data.model.ExpenseCategory
-import com.example.data.model.IncomeCategory
+import com.example.data.model.DEFAULT_CATEGORIES
 import com.example.data.model.Transaction
 import com.example.data.model.TransactionType
 import com.example.ui.components.CategoryIconButton
@@ -207,6 +206,10 @@ fun NewTransactionSheet(
 
       Spacer(modifier = Modifier.height(10.dp))
 
+      val effectiveCategories = if (categories.isNotEmpty()) categories else DEFAULT_CATEGORIES
+      val expenseCategoryList = effectiveCategories.filter { it.type == TransactionType.EXPENSE }
+      val incomeCategoryList = effectiveCategories.filter { it.type == TransactionType.INCOME }
+
       // 1. Expense / Income Segmented Toggle
       SegmentedToggle(
         options = listOf("Expense", "Income"),
@@ -214,13 +217,13 @@ fun NewTransactionSheet(
         onSelect = { index ->
           if (index == 0) {
             transactionType = TransactionType.EXPENSE
-            if (IncomeCategory.values().any { it.displayName == selectedCategory }) {
-              selectedCategory = "Food"
+            if (expenseCategoryList.none { it.name.equals(selectedCategory, ignoreCase = true) }) {
+              selectedCategory = expenseCategoryList.firstOrNull()?.name ?: "Food"
             }
           } else {
             transactionType = TransactionType.INCOME
-            if (ExpenseCategory.values().any { it.displayName == selectedCategory }) {
-              selectedCategory = "Salary"
+            if (incomeCategoryList.none { it.name.equals(selectedCategory, ignoreCase = true) }) {
+              selectedCategory = incomeCategoryList.firstOrNull()?.name ?: "Salary"
             }
           }
         },
@@ -299,63 +302,25 @@ fun NewTransactionSheet(
       )
       Spacer(modifier = Modifier.height(6.dp))
 
-      val expenseCategoryList = if (categories.isNotEmpty()) categories.filter { it.type == TransactionType.EXPENSE } else emptyList()
-      val incomeCategoryList = if (categories.isNotEmpty()) categories.filter { it.type == TransactionType.INCOME } else emptyList()
-
       Row(
         modifier = Modifier
           .fillMaxWidth()
           .horizontalScroll(rememberScrollState()),
         horizontalArrangement = Arrangement.spacedBy(8.dp)
       ) {
-        if (isExpense) {
-          if (expenseCategoryList.isNotEmpty()) {
-            expenseCategoryList.forEach { cat ->
-              CategoryIconButton(
-                label = cat.name,
-                icon = getCategoryIcon(cat.name, cat.iconName),
-                selected = selectedCategory.equals(cat.name, ignoreCase = true),
-                onClick = { selectedCategory = cat.name },
-                baseColor = BachatDanger,
-                tintColor = BachatDangerTint
-              )
-            }
-          } else {
-            ExpenseCategory.values().forEach { cat ->
-              CategoryIconButton(
-                label = cat.shortName,
-                icon = getCategoryIcon(cat.displayName),
-                selected = selectedCategory == cat.displayName,
-                onClick = { selectedCategory = cat.displayName },
-                baseColor = BachatDanger,
-                tintColor = BachatDangerTint
-              )
-            }
-          }
-        } else {
-          if (incomeCategoryList.isNotEmpty()) {
-            incomeCategoryList.forEach { cat ->
-              CategoryIconButton(
-                label = cat.name,
-                icon = getCategoryIcon(cat.name, cat.iconName),
-                selected = selectedCategory.equals(cat.name, ignoreCase = true),
-                onClick = { selectedCategory = cat.name },
-                baseColor = BachatSuccess,
-                tintColor = BachatSuccessTint
-              )
-            }
-          } else {
-            IncomeCategory.values().forEach { cat ->
-              CategoryIconButton(
-                label = cat.displayName,
-                icon = getCategoryIcon(cat.displayName),
-                selected = selectedCategory == cat.displayName,
-                onClick = { selectedCategory = cat.displayName },
-                baseColor = BachatSuccess,
-                tintColor = BachatSuccessTint
-              )
-            }
-          }
+        val currentCategoryList = if (isExpense) expenseCategoryList else incomeCategoryList
+        val currentBaseColor = if (isExpense) BachatDanger else BachatSuccess
+        val currentTintColor = if (isExpense) BachatDangerTint else BachatSuccessTint
+
+        currentCategoryList.forEach { cat ->
+          CategoryIconButton(
+            label = cat.name,
+            icon = getCategoryIcon(cat.name, cat.iconName),
+            selected = selectedCategory.equals(cat.name, ignoreCase = true),
+            onClick = { selectedCategory = cat.name },
+            baseColor = currentBaseColor,
+            tintColor = currentTintColor
+          )
         }
       }
 

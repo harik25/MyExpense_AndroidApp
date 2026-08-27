@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -27,6 +28,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowForwardIos
 import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.Autorenew
+import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Category
 import androidx.compose.material.icons.filled.Psychology
 import androidx.compose.material.icons.filled.Star
@@ -77,14 +79,17 @@ import java.io.FileOutputStream
 fun SettingsScreen(
   appSettings: AppSettings,
   categories: List<CategoryItem> = emptyList(),
+  bills: List<com.example.data.model.RecurringBill> = emptyList(),
   onBackClick: () -> Unit,
   onNavigateToPinSetup: () -> Unit,
   onNavigateToAllGoals: () -> Unit,
+  onNavigateToBills: () -> Unit = {},
   onSetThemeMode: (AppThemeMode) -> Unit,
   onSetSecretLockEnabled: (Boolean) -> Unit,
   onSetUseBiometric: (Boolean) -> Unit,
   onSetGoalAlertsEnabled: (Boolean) -> Unit,
   onSetShowGoalsOnDashboard: (Boolean) -> Unit,
+  onSetShowBillsOnDashboard: (Boolean) -> Unit = {},
   onAddCategory: (name: String, type: TransactionType, iconName: String, colorHex: Long) -> Unit = { _, _, _, _ -> },
   onUpdateCategory: (CategoryItem) -> Unit = {},
   onDeleteCategory: (CategoryItem) -> Unit = {},
@@ -121,7 +126,7 @@ fun SettingsScreen(
     try {
       val json = onExportJson()
       val cacheDir = File(context.cacheDir, "backups").apply { mkdirs() }
-      val file = File(cacheDir, "Bachat_Backup_${System.currentTimeMillis()}.json")
+      val file = File(cacheDir, "ExpenseApp_Backup_${System.currentTimeMillis()}.json")
       FileOutputStream(file).use { it.write(json.toByteArray()) }
 
       val fileUri = FileProvider.getUriForFile(
@@ -134,7 +139,7 @@ fun SettingsScreen(
         putExtra(Intent.EXTRA_STREAM, fileUri)
         addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
       }
-      context.startActivity(Intent.createChooser(shareIntent, "Export Bachat Backup"))
+      context.startActivity(Intent.createChooser(shareIntent, "Export ExpenseApp Backup"))
     } catch (e: Exception) {
       Toast.makeText(context, "Export error: ${e.message}", Toast.LENGTH_SHORT).show()
     }
@@ -173,13 +178,19 @@ fun SettingsScreen(
     containerColor = Color.White,
     modifier = modifier.testTag("settings_screen")
   ) { padding ->
-    LazyColumn(
+    Box(
       modifier = Modifier
         .fillMaxSize()
-        .padding(padding)
-        .padding(horizontal = 20.dp),
-      verticalArrangement = Arrangement.spacedBy(20.dp)
+        .padding(padding),
+      contentAlignment = Alignment.TopCenter
     ) {
+      LazyColumn(
+        modifier = Modifier
+          .fillMaxSize()
+          .widthIn(max = 680.dp)
+          .padding(horizontal = 20.dp),
+        verticalArrangement = Arrangement.spacedBy(20.dp)
+      ) {
       item {
         Spacer(modifier = Modifier.height(4.dp))
       }
@@ -448,7 +459,84 @@ fun SettingsScreen(
         }
       }
 
-      // SECTION 5: NOTIFICATIONS
+      // SECTION 5: BILLS & SUBSCRIPTIONS
+      item {
+        Column(modifier = Modifier.fillMaxWidth()) {
+          Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+          ) {
+            Text(
+              text = "BILLS & SUBSCRIPTIONS",
+              fontSize = 11.5.sp,
+              fontWeight = FontWeight.SemiBold,
+              letterSpacing = 0.5.sp,
+              color = BachatTextSecondary
+            )
+            if (bills.isNotEmpty()) {
+              BadgePill(
+                text = "${bills.count { !it.isPaused }} Active",
+                backgroundColor = BachatAccentIndigoTint,
+                textColor = BachatAccentIndigo
+              )
+            }
+          }
+          Spacer(modifier = Modifier.height(10.dp))
+
+          Row(
+            modifier = Modifier
+              .fillMaxWidth()
+              .clip(RoundedCornerShape(16.dp))
+              .background(BachatSurface)
+              .clickable { onNavigateToBills() }
+              .padding(horizontal = 16.dp, vertical = 14.dp)
+              .testTag("manage_bills_row"),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+          ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+              Icon(
+                imageVector = Icons.Default.CalendarMonth,
+                contentDescription = null,
+                tint = BachatInk,
+                modifier = Modifier.size(20.dp)
+              )
+              Spacer(modifier = Modifier.width(12.dp))
+              Column {
+                Text(
+                  text = "Manage Recurring Bills",
+                  fontSize = 15.sp,
+                  fontWeight = FontWeight.SemiBold,
+                  color = BachatTextPrimary
+                )
+                Text(
+                  text = "Add, edit, or adjust Once, Weekly & Monthly bills",
+                  fontSize = 12.sp,
+                  color = BachatTextSecondary
+                )
+              }
+            }
+
+            Icon(
+              imageVector = Icons.AutoMirrored.Filled.ArrowForwardIos,
+              contentDescription = null,
+              tint = BachatTextSecondary,
+              modifier = Modifier.size(14.dp)
+            )
+          }
+          Spacer(modifier = Modifier.height(10.dp))
+          ToggleSwitchRow(
+            title = "Show Due Bills on Dashboard",
+            subtitle = "Only displays when due in 2 days or overdue",
+            checked = appSettings.showBillsOnDashboard,
+            onCheckedChange = { onSetShowBillsOnDashboard(it) },
+            modifier = Modifier.testTag("show_bills_toggle")
+          )
+        }
+      }
+
+      // SECTION 6: NOTIFICATIONS
       item {
         Column(modifier = Modifier.fillMaxWidth()) {
           Text(
@@ -461,8 +549,8 @@ fun SettingsScreen(
           Spacer(modifier = Modifier.height(10.dp))
 
           ToggleSwitchRow(
-            title = "Goal limit alerts",
-            subtitle = "Notify me when a goal nears or passes its target",
+            title = "Goal limit & overspend alerts",
+            subtitle = "Notify me when a category budget or goal reaches limit",
             checked = appSettings.goalAlertsEnabled,
             onCheckedChange = { onSetGoalAlertsEnabled(it) }
           )
@@ -476,7 +564,7 @@ fun SettingsScreen(
         ) {
           Spacer(modifier = Modifier.height(24.dp))
           Text(
-            text = "Bachat v2.0",
+            text = "ExpenseApp v2.0",
             fontSize = 13.sp,
             fontWeight = FontWeight.Medium,
             color = BachatTextSecondary
@@ -486,6 +574,7 @@ fun SettingsScreen(
       }
     }
   }
+}
 
   // ConfirmDialog for JSON Import
   if (showImportConfirmDialog && pendingImportJsonContent != null) {

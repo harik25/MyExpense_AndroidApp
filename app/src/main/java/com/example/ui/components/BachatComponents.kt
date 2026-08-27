@@ -1,5 +1,6 @@
 package com.example.ui.components
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -15,6 +16,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.ui.draw.shadow
+import java.util.Calendar
 import com.example.ui.theme.BachatTheme
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -355,69 +357,106 @@ fun TransactionRow(
   val timeFormatter = SimpleDateFormat("HH:mm · dd MMM", Locale.getDefault())
   val dateFormatted = timeFormatter.format(Date(transaction.timestamp))
 
+  val hasDistinctTitle = transaction.title.isNotBlank() && 
+      !transaction.title.equals(transaction.category, ignoreCase = true)
+  val primaryTitle = if (hasDistinctTitle) transaction.title else transaction.category
+
   Row(
     modifier = modifier
       .fillMaxWidth()
+      .clip(RoundedCornerShape(12.dp))
       .clickable { onClick() }
-      .padding(vertical = 4.dp, horizontal = 0.dp)
+      .padding(vertical = 8.dp, horizontal = 4.dp)
       .testTag("transaction_row_${transaction.id}"),
     verticalAlignment = Alignment.CenterVertically
   ) {
-    // Avatar
+    // Dynamic Icon Avatar
     Box(
       modifier = Modifier
-        .size(32.dp)
-        .clip(CircleShape)
-        .background(iconBgColor),
+        .size(42.dp)
+        .clip(RoundedCornerShape(13.dp))
+        .background(iconBgColor)
+        .border(0.8.dp, iconColor.copy(alpha = 0.22f), RoundedCornerShape(13.dp)),
       contentAlignment = Alignment.Center
     ) {
       Icon(
         imageVector = categoryIcon,
         contentDescription = transaction.category,
         tint = iconColor,
-        modifier = Modifier.size(16.dp)
+        modifier = Modifier.size(20.dp)
       )
     }
 
-    Spacer(modifier = Modifier.width(8.dp))
+    Spacer(modifier = Modifier.width(12.dp))
 
-    // Middle Info
-    Column(modifier = Modifier.weight(1f)) {
+    // Middle Information
+    Column(
+      modifier = Modifier
+        .weight(1f)
+        .padding(end = 4.dp)
+    ) {
       Text(
-        text = transaction.category,
-        fontSize = 14.sp,
-        fontWeight = FontWeight.Bold,
-        color = BachatTextPrimary
+        text = primaryTitle,
+        fontSize = 14.5.sp,
+        fontWeight = FontWeight.SemiBold,
+        color = BachatTextPrimary,
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis
       )
 
-      Row(verticalAlignment = Alignment.CenterVertically) {
+      Spacer(modifier = Modifier.height(3.dp))
+
+      Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(5.dp)
+      ) {
         Text(
           text = dateFormatted,
           fontSize = 11.sp,
           color = BachatTextSecondary
         )
-        Spacer(modifier = Modifier.width(4.dp))
+
+        // Show category chip if title was merchant/bill name
+        if (hasDistinctTitle) {
+          Box(
+            modifier = Modifier
+              .clip(RoundedCornerShape(5.dp))
+              .background(BachatSurface)
+              .padding(horizontal = 5.dp, vertical = 1.dp)
+          ) {
+            Text(
+              text = transaction.category,
+              fontSize = 9.5.sp,
+              fontWeight = FontWeight.Medium,
+              color = BachatTextPrimary,
+              maxLines = 1,
+              overflow = TextOverflow.Ellipsis
+            )
+          }
+        }
+
+        // Account tag (UPI, Bank, Cash, Card)
         Box(
           modifier = Modifier
-            .clip(RoundedCornerShape(6.dp))
+            .clip(RoundedCornerShape(5.dp))
             .background(BachatSurface)
-            .padding(horizontal = 4.dp, vertical = 0.dp)
+            .padding(horizontal = 5.dp, vertical = 1.dp)
         ) {
           Text(
             text = transaction.accountTag,
-            fontSize = 9.sp,
+            fontSize = 9.5.sp,
             fontWeight = FontWeight.SemiBold,
             color = BachatTextSecondary
           )
         }
 
         if (transaction.isAuto) {
-          Spacer(modifier = Modifier.width(4.dp))
           Box(
             modifier = Modifier
-              .clip(RoundedCornerShape(6.dp))
+              .clip(RoundedCornerShape(5.dp))
               .background(BachatSuccessTint)
-              .padding(horizontal = 4.dp, vertical = 0.dp)
+              .padding(horizontal = 5.dp, vertical = 1.dp)
           ) {
             Text(
               text = "⚡ AUTO",
@@ -428,19 +467,18 @@ fun TransactionRow(
           }
         }
 
-        if (transaction.note.isNotBlank()) {
-          Spacer(modifier = Modifier.width(4.dp))
+        if (transaction.note.isNotBlank() && (!hasDistinctTitle || !transaction.note.equals(transaction.title, ignoreCase = true))) {
           Text(
             text = "· ${transaction.note}",
             fontSize = 11.sp,
             color = BachatTextSecondary,
             maxLines = 1,
-            overflow = TextOverflow.Ellipsis
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f, fill = false)
           )
         }
 
         if (!transaction.receiptUri.isNullOrBlank()) {
-          Spacer(modifier = Modifier.width(6.dp))
           Icon(
             imageVector = Icons.Default.Receipt,
             contentDescription = "Receipt attached",
@@ -451,13 +489,25 @@ fun TransactionRow(
       }
     }
 
+    Spacer(modifier = Modifier.width(8.dp))
+
     // Trailing Amount
-    Text(
-      text = (if (isExpense) "-" else "+") + formatRupee(transaction.amount),
-      fontSize = 14.sp,
-      fontWeight = FontWeight.Bold,
-      color = amountColor
-    )
+    Column(horizontalAlignment = Alignment.End) {
+      Text(
+        text = (if (isExpense) "- " else "+ ") + formatRupee(transaction.amount),
+        fontSize = 14.5.sp,
+        fontWeight = FontWeight.Bold,
+        color = amountColor
+      )
+      if (transaction.isSecret) {
+        Spacer(modifier = Modifier.height(2.dp))
+        Text(
+          text = "🔒 Secret",
+          fontSize = 9.5.sp,
+          color = BachatTextSecondary
+        )
+      }
+    }
   }
 }
 
@@ -1007,6 +1057,583 @@ fun CategoryIconButton(
       color = if (selected) BachatTextPrimary else BachatTextSecondary,
       maxLines = 1
     )
+  }
+}
+
+// -------------------------------------------------------------
+// NEW FEATURE COMPONENTS: OVERSPEND ALERTS, RECURRING BILLS, MOM
+// -------------------------------------------------------------
+
+@Composable
+fun OverspendAlertBanner(
+  alerts: List<com.example.data.model.OverspendAlert>,
+  onDismiss: (() -> Unit)? = null,
+  onViewBudgets: (() -> Unit)? = null,
+  modifier: Modifier = Modifier
+) {
+  if (alerts.isEmpty()) return
+
+  val criticalAlert = alerts.firstOrNull { it.isExceeded } ?: alerts.first()
+  val isExceeded = criticalAlert.isExceeded
+
+  Card(
+    modifier = modifier
+      .fillMaxWidth()
+      .testTag("overspend_alert_banner"),
+    shape = RoundedCornerShape(16.dp),
+    colors = CardDefaults.cardColors(
+      containerColor = if (isExceeded) Color(0xFFFEF2F2) else Color(0xFFFFFBEB)
+    ),
+    border = BorderStroke(
+      width = 1.dp,
+      color = if (isExceeded) Color(0xFFFCA5A5) else Color(0xFFFCD34D)
+    )
+  ) {
+    Column(modifier = Modifier.padding(14.dp)) {
+      Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween
+      ) {
+        Row(
+          verticalAlignment = Alignment.CenterVertically,
+          modifier = Modifier.weight(1f)
+        ) {
+          Box(
+            modifier = Modifier
+              .size(32.dp)
+              .clip(CircleShape)
+              .background(if (isExceeded) BachatDanger else BachatWarning),
+            contentAlignment = Alignment.Center
+          ) {
+            Icon(
+              imageVector = if (isExceeded) Icons.Default.ErrorOutline else Icons.Default.Warning,
+              contentDescription = null,
+              tint = Color.White,
+              modifier = Modifier.size(18.dp)
+            )
+          }
+          Spacer(modifier = Modifier.width(10.dp))
+          Column {
+            Text(
+              text = if (isExceeded) "Overspend Alert!" else "Budget Warning",
+              fontSize = 14.sp,
+              fontWeight = FontWeight.Bold,
+              color = if (isExceeded) Color(0xFF991B1B) else Color(0xFF92400E)
+            )
+            Text(
+              text = if (isExceeded) {
+                "${criticalAlert.category} budget exceeded by ${formatRupee(criticalAlert.overspendAmount)} (${criticalAlert.percentageUsed.toInt()}% used)"
+              } else {
+                "${criticalAlert.category} is at ${criticalAlert.percentageUsed.toInt()}% of budget (${formatRupee(criticalAlert.budgetLimit - criticalAlert.spentAmount)} left)"
+              },
+              fontSize = 12.5.sp,
+              color = if (isExceeded) Color(0xFFB91C1C) else Color(0xFFB45309),
+              fontWeight = FontWeight.Medium
+            )
+          }
+        }
+      }
+
+      if (alerts.size > 1) {
+        Spacer(modifier = Modifier.height(8.dp))
+        Text(
+          text = "+ ${alerts.size - 1} other category alerts",
+          fontSize = 11.5.sp,
+          fontWeight = FontWeight.SemiBold,
+          color = if (isExceeded) Color(0xFF991B1B) else Color(0xFF92400E)
+        )
+      }
+    }
+  }
+}
+
+@Composable
+fun CategoryBudgetProgressCard(
+  budgets: List<com.example.data.model.CategoryBudgetInsight>,
+  onManageBudgets: (() -> Unit)? = null,
+  modifier: Modifier = Modifier
+) {
+  if (budgets.isEmpty()) return
+
+  AppCard(
+    modifier = modifier
+      .fillMaxWidth()
+      .testTag("category_budgets_card")
+  ) {
+    Column(modifier = Modifier.fillMaxWidth()) {
+      Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween
+      ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+          Box(
+            modifier = Modifier
+              .size(28.dp)
+              .clip(CircleShape)
+              .background(BachatAccentIndigoTint),
+            contentAlignment = Alignment.Center
+          ) {
+            Icon(
+              imageVector = Icons.Default.AccountBalanceWallet,
+              contentDescription = null,
+              tint = BachatAccentIndigo,
+              modifier = Modifier.size(16.dp)
+            )
+          }
+          Spacer(modifier = Modifier.width(8.dp))
+          Text(
+            text = "Category Budgets & Limits",
+            fontSize = 15.sp,
+            fontWeight = FontWeight.Bold,
+            color = BachatTextPrimary
+          )
+        }
+
+        if (onManageBudgets != null) {
+          Text(
+            text = "Manage",
+            fontSize = 13.sp,
+            fontWeight = FontWeight.SemiBold,
+            color = BachatInk,
+            modifier = Modifier.clickable { onManageBudgets() }
+          )
+        }
+      }
+
+      Spacer(modifier = Modifier.height(14.dp))
+
+      Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        budgets.take(4).forEach { item ->
+          val isExceeded = item.percentageUsed >= 100.0
+          val isWarning = item.percentageUsed in 80.0..99.9
+
+          val statusColor = when {
+            isExceeded -> BachatDanger
+            isWarning -> BachatWarning
+            else -> BachatSuccess
+          }
+
+          val statusBgColor = when {
+            isExceeded -> BachatDangerTint
+            isWarning -> BachatWarningTint
+            else -> BachatSuccessTint
+          }
+
+          Column(modifier = Modifier.fillMaxWidth()) {
+            Row(
+              modifier = Modifier.fillMaxWidth(),
+              verticalAlignment = Alignment.CenterVertically,
+              horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+              Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                  modifier = Modifier
+                    .size(26.dp)
+                    .clip(CircleShape)
+                    .background(statusBgColor),
+                  contentAlignment = Alignment.Center
+                ) {
+                  Icon(
+                    imageVector = getCategoryIcon(item.category),
+                    contentDescription = null,
+                    tint = statusColor,
+                    modifier = Modifier.size(14.dp)
+                  )
+                }
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                  text = item.category,
+                  fontSize = 13.5.sp,
+                  fontWeight = FontWeight.SemiBold,
+                  color = BachatTextPrimary
+                )
+              }
+
+              Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                  text = "${formatRupee(item.spentAmount)} / ${formatRupee(item.budgetLimit)}",
+                  fontSize = 12.sp,
+                  fontWeight = FontWeight.Medium,
+                  color = if (isExceeded) BachatDanger else BachatTextSecondary
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+                BadgePill(
+                  text = "${item.percentageUsed.toInt()}%",
+                  backgroundColor = statusBgColor,
+                  textColor = statusColor
+                )
+              }
+            }
+
+            Spacer(modifier = Modifier.height(6.dp))
+
+            // Progress bar
+            val progress = (item.spentAmount / item.budgetLimit).toFloat().coerceIn(0f, 1f)
+            Box(
+              modifier = Modifier
+                .fillMaxWidth()
+                .height(6.dp)
+                .clip(RoundedCornerShape(3.dp))
+                .background(BachatSurface)
+            ) {
+              Box(
+                modifier = Modifier
+                  .fillMaxWidth(progress)
+                  .height(6.dp)
+                  .clip(RoundedCornerShape(3.dp))
+                  .background(statusColor)
+              )
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+@Composable
+fun RecurringBillRowItem(
+  bill: com.example.data.model.RecurringBill,
+  currentMonthKey: String,
+  onPayClick: () -> Unit = {},
+  onEditClick: () -> Unit = {},
+  onClick: () -> Unit = onEditClick,
+  modifier: Modifier = Modifier
+) {
+  val isPaid = bill.isPaidForCurrentMonth(currentMonthKey)
+  val today = Calendar.getInstance().get(Calendar.DAY_OF_MONTH)
+  val isOverdue = !isPaid && today > bill.dueDayOfMonth
+  val isDueToday = !isPaid && today == bill.dueDayOfMonth
+  val daysLeft = bill.dueDayOfMonth - today
+
+  AppCard(
+    modifier = modifier
+      .fillMaxWidth()
+      .clickable { onClick() }
+      .testTag("recurring_bill_${bill.id}")
+  ) {
+    Row(
+      modifier = Modifier.fillMaxWidth(),
+      verticalAlignment = Alignment.CenterVertically,
+      horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+      Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier.weight(1f)
+      ) {
+        Box(
+          modifier = Modifier
+            .size(42.dp)
+            .clip(CircleShape)
+            .background(if (isPaid) BachatSuccessTint else if (isOverdue) BachatDangerTint else BachatAccentIndigoTint),
+          contentAlignment = Alignment.Center
+        ) {
+          Icon(
+            imageVector = if (isPaid) Icons.Default.CheckCircle else getCategoryIcon(bill.category),
+            contentDescription = null,
+            tint = if (isPaid) BachatSuccess else if (isOverdue) BachatDanger else BachatAccentIndigo,
+            modifier = Modifier.size(22.dp)
+          )
+        }
+
+        Spacer(modifier = Modifier.width(12.dp))
+
+        Column {
+          Text(
+            text = bill.title,
+            fontSize = 15.sp,
+            fontWeight = FontWeight.Bold,
+            color = BachatTextPrimary,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+          )
+          Spacer(modifier = Modifier.height(2.dp))
+          Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+              text = "Due on ${bill.dueDayOfMonth}${getDaySuffix(bill.dueDayOfMonth)}",
+              fontSize = 12.sp,
+              color = BachatTextSecondary
+            )
+            Spacer(modifier = Modifier.width(6.dp))
+            val badgeText = when {
+              isPaid -> "Paid ✓"
+              isOverdue -> "Overdue"
+              isDueToday -> "Due Today"
+              daysLeft in 1..3 -> "In $daysLeft days"
+              else -> bill.cadence
+            }
+            val badgeBg = when {
+              isPaid -> BachatSuccessTint
+              isOverdue -> BachatDangerTint
+              isDueToday || (daysLeft in 1..3) -> BachatWarningTint
+              else -> BachatSurface
+            }
+            val badgeColor = when {
+              isPaid -> BachatSuccess
+              isOverdue -> BachatDanger
+              isDueToday || (daysLeft in 1..3) -> BachatWarning
+              else -> BachatTextSecondary
+            }
+            BadgePill(text = badgeText, backgroundColor = badgeBg, textColor = badgeColor)
+          }
+        }
+      }
+
+      Column(horizontalAlignment = Alignment.End) {
+        Text(
+          text = formatRupee(bill.amount),
+          fontSize = 16.sp,
+          fontWeight = FontWeight.ExtraBold,
+          color = BachatTextPrimary
+        )
+
+        Spacer(modifier = Modifier.height(6.dp))
+
+        if (!isPaid) {
+          Button(
+            onClick = onPayClick,
+            shape = RoundedCornerShape(20.dp),
+            colors = ButtonDefaults.buttonColors(
+              containerColor = if (isOverdue) BachatDanger else BachatInk,
+              contentColor = Color.White
+            ),
+            contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+            modifier = Modifier.height(28.dp)
+          ) {
+            Text(text = "Pay & Log", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+          }
+        } else {
+          Text(
+            text = "Settled",
+            fontSize = 11.sp,
+            fontWeight = FontWeight.SemiBold,
+            color = BachatSuccess
+          )
+        }
+      }
+    }
+  }
+}
+
+private fun getDaySuffix(day: Int): String {
+  if (day in 11..13) return "th"
+  return when (day % 10) {
+    1 -> "st"
+    2 -> "nd"
+    3 -> "rd"
+    else -> "th"
+  }
+}
+
+@Composable
+fun MonthOverMonthInsightsCard(
+  insight: com.example.data.model.MonthOverMonthInsight,
+  modifier: Modifier = Modifier
+) {
+  AppCard(
+    modifier = modifier
+      .fillMaxWidth()
+      .testTag("mom_insights_card")
+  ) {
+    Column(modifier = Modifier.fillMaxWidth()) {
+      // Card Header
+      Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+      ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+          Box(
+            modifier = Modifier
+              .size(28.dp)
+              .clip(CircleShape)
+              .background(BachatAccentIndigoTint),
+            contentAlignment = Alignment.Center
+          ) {
+            Icon(
+              imageVector = Icons.Default.TrendingUp,
+              contentDescription = null,
+              tint = BachatAccentIndigo,
+              modifier = Modifier.size(16.dp)
+            )
+          }
+          Spacer(modifier = Modifier.width(8.dp))
+          Text(
+            text = "Month-over-Month Insights",
+            fontSize = 15.sp,
+            fontWeight = FontWeight.Bold,
+            color = BachatTextPrimary
+          )
+        }
+
+        if (insight.percentageChange > 0) {
+          val isLower = insight.isLower
+          BadgePill(
+            text = (if (isLower) "↓ " else "↑ ") + "${insight.percentageChange.toInt()}% vs Last Mo",
+            backgroundColor = if (isLower) BachatSuccessTint else BachatDangerTint,
+            textColor = if (isLower) BachatSuccess else BachatDanger
+          )
+        }
+      }
+
+      Spacer(modifier = Modifier.height(14.dp))
+
+      // Main Delta Comparison Stats
+      Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween
+      ) {
+        Column {
+          Text(text = "THIS MONTH", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = BachatTextSecondary)
+          Spacer(modifier = Modifier.height(2.dp))
+          Text(text = formatRupee(insight.thisMonthTotal), fontSize = 18.sp, fontWeight = FontWeight.ExtraBold, color = BachatTextPrimary)
+        }
+
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+          Text(text = "LAST MONTH", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = BachatTextSecondary)
+          Spacer(modifier = Modifier.height(2.dp))
+          Text(text = formatRupee(insight.lastMonthTotal), fontSize = 18.sp, fontWeight = FontWeight.SemiBold, color = BachatTextSecondary)
+        }
+
+        Column(horizontalAlignment = Alignment.End) {
+          Text(text = "DIFFERENCE", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = BachatTextSecondary)
+          Spacer(modifier = Modifier.height(2.dp))
+          val diffPrefix = if (insight.diffAmount >= 0) "+ " else "- "
+          Text(
+            text = "$diffPrefix${formatRupee(kotlin.math.abs(insight.diffAmount))}",
+            fontSize = 18.sp,
+            fontWeight = FontWeight.ExtraBold,
+            color = if (insight.isLower) BachatSuccess else BachatDanger
+          )
+        }
+      }
+
+      // Peak Day & Daily Velocity Callout
+      if (insight.peakSpendDayLabel.isNotBlank() || insight.thisMonthDailyAvg > 0) {
+        Spacer(modifier = Modifier.height(12.dp))
+        HorizontalDivider(color = BachatDivider, thickness = 0.8.dp)
+        Spacer(modifier = Modifier.height(12.dp))
+
+        Row(
+          modifier = Modifier.fillMaxWidth(),
+          horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+          if (insight.peakSpendDayLabel.isNotBlank()) {
+            Column(modifier = Modifier.weight(1f)) {
+              Text(
+                text = "⚡ Peak Spend Day",
+                fontSize = 11.5.sp,
+                fontWeight = FontWeight.Bold,
+                color = BachatTextSecondary
+              )
+              Text(
+                text = "${insight.peakSpendDayLabel} (${formatRupee(insight.peakSpendDayAmount)})",
+                fontSize = 12.5.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = BachatTextPrimary
+              )
+            }
+          }
+
+          Column(modifier = Modifier.weight(1f), horizontalAlignment = Alignment.End) {
+            Text(
+              text = "🔥 Daily Burn Rate",
+              fontSize = 11.5.sp,
+              fontWeight = FontWeight.Bold,
+              color = BachatTextSecondary
+            )
+            Text(
+              text = "${formatRupee(insight.thisMonthDailyAvg)}/day (Proj: ${formatRupee(insight.projectedMonthEndTotal)})",
+              fontSize = 12.5.sp,
+              fontWeight = FontWeight.SemiBold,
+              color = BachatTextPrimary
+            )
+          }
+        }
+      }
+
+      // Category Shift Badges (Food +12%, Transport -25%)
+      if (insight.categoryShifts.isNotEmpty()) {
+        Spacer(modifier = Modifier.height(12.dp))
+        HorizontalDivider(color = BachatDivider, thickness = 0.8.dp)
+        Spacer(modifier = Modifier.height(10.dp))
+
+        Text(
+          text = "CATEGORY SHIFTS VS LAST MONTH",
+          fontSize = 11.sp,
+          fontWeight = FontWeight.Bold,
+          letterSpacing = 0.5.sp,
+          color = BachatTextSecondary
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+
+        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+          insight.categoryShifts.take(4).forEach { shift ->
+            Row(
+              modifier = Modifier.fillMaxWidth(),
+              verticalAlignment = Alignment.CenterVertically,
+              horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+              Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                  imageVector = getCategoryIcon(shift.category),
+                  contentDescription = null,
+                  tint = BachatTextSecondary,
+                  modifier = Modifier.size(14.dp)
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+                Text(
+                  text = shift.category,
+                  fontSize = 13.sp,
+                  fontWeight = FontWeight.Medium,
+                  color = BachatTextPrimary
+                )
+              }
+
+              Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                  text = "${formatRupee(shift.currentMonthAmount)} vs ${formatRupee(shift.lastMonthAmount)}",
+                  fontSize = 12.sp,
+                  color = BachatTextSecondary
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                BadgePill(
+                  text = if (shift.isIncrease) "+${shift.percentageChange.toInt()}% 🔺" else "-${shift.percentageChange.toInt()}% 🔻",
+                  backgroundColor = if (shift.isIncrease) BachatDangerTint else BachatSuccessTint,
+                  textColor = if (shift.isIncrease) BachatDanger else BachatSuccess
+                )
+              }
+            }
+          }
+        }
+      }
+
+      // Smart Key Takeaways
+      if (insight.keyTakeaways.isNotEmpty()) {
+        Spacer(modifier = Modifier.height(12.dp))
+        Box(
+          modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(BachatSurface)
+            .padding(10.dp)
+        ) {
+          Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            insight.keyTakeaways.forEach { takeaway ->
+              Text(
+                text = "💡 $takeaway",
+                fontSize = 11.5.sp,
+                fontWeight = FontWeight.Medium,
+                color = BachatTextPrimary,
+                lineHeight = 16.sp
+              )
+            }
+          }
+        }
+      }
+    }
   }
 }
 

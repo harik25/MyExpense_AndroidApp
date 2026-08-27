@@ -171,7 +171,7 @@ object PdfExportManager {
 
     // Title
     var y = 48f
-    canvas.drawText("Bachat — Activity & Expense Report", 40f, y, titlePaint)
+    canvas.drawText("My Expense — Activity & Expense Report", 40f, y, titlePaint)
     y += 18f
     val sdf = SimpleDateFormat("dd MMMM yyyy, HH:mm", Locale.getDefault())
     canvas.drawText("Period: $periodLabel  |  Generated on: ${sdf.format(Date())}", 40f, y, subPaint)
@@ -219,7 +219,7 @@ object PdfExportManager {
     pdfDocument.finishPage(page)
 
     val outputDir = File(context.cacheDir, "reports").apply { mkdirs() }
-    val outputFile = File(outputDir, "Bachat_Activity_${System.currentTimeMillis()}.pdf")
+    val outputFile = File(outputDir, "Expense_Activity_${System.currentTimeMillis()}.pdf")
     val fos = FileOutputStream(outputFile)
     pdfDocument.writeTo(fos)
     pdfDocument.close()

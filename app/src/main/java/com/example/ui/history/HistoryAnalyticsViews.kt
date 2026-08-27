@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
@@ -77,8 +78,8 @@ import androidx.compose.ui.unit.sp
 import androidx.core.content.FileProvider
 import androidx.compose.foundation.BorderStroke
 import com.example.data.model.AccountTag
-import com.example.data.model.ExpenseCategory
-import com.example.data.model.IncomeCategory
+import com.example.data.model.CategoryItem
+import com.example.data.model.DEFAULT_CATEGORIES
 import com.example.data.model.SortDirection
 import com.example.data.model.SortField
 import com.example.data.model.TimePeriod
@@ -118,6 +119,9 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.snapshotFlow
 import kotlinx.coroutines.flow.collectLatest
 import com.example.ui.theme.BachatSuccess
+import com.example.ui.components.CategoryBudgetProgressCard
+import com.example.ui.components.MonthOverMonthInsightsCard
+import com.example.ui.components.OverspendAlertBanner
 import com.example.ui.theme.BachatSuccessTint
 import com.example.ui.theme.BachatSurface
 import com.example.ui.theme.BachatTextPrimary
@@ -131,6 +135,7 @@ fun HistoryAnalyticsScreen(
   analyticsState: AnalyticsUiState,
   filteredTransactions: List<Transaction>,
   filterState: FilterState,
+  categories: List<CategoryItem> = emptyList(),
   isSecretLocked: Boolean,
   onUpdateFilter: (FilterState.() -> FilterState) -> Unit,
   onResetFilter: () -> Unit,
@@ -214,29 +219,21 @@ fun HistoryAnalyticsScreen(
     containerColor = Color.White,
     modifier = modifier.testTag("history_analytics_screen")
   ) { padding ->
-    Column(
+    Box(
       modifier = Modifier
         .fillMaxSize()
-        .padding(padding)
-        .padding(horizontal = 20.dp)
+        .padding(padding),
+      contentAlignment = Alignment.TopCenter
     ) {
+      Column(
+        modifier = Modifier
+          .fillMaxSize()
+          .widthIn(max = 680.dp)
+          .padding(horizontal = 20.dp)
+      ) {
       Spacer(modifier = Modifier.height(4.dp))
 
       // Tab selector: Analytics / Activity
-      val pagerState = rememberPagerState(initialPage = selectedTab, pageCount = { 2 })
-      LaunchedEffect(selectedTab) {
-        if (pagerState.currentPage != selectedTab) {
-          pagerState.animateScrollToPage(selectedTab)
-        }
-      }
-      LaunchedEffect(pagerState) {
-        snapshotFlow { pagerState.currentPage }.collectLatest { page ->
-          if (page != selectedTab) {
-            onTabSelect(page)
-          }
-        }
-      }
-
       SegmentedToggle(
         options = listOf("Analytics", "Activity"),
         selectedIndex = selectedTab,
@@ -245,29 +242,25 @@ fun HistoryAnalyticsScreen(
 
       Spacer(modifier = Modifier.height(14.dp))
 
-      HorizontalPager(
-        state = pagerState,
-        modifier = Modifier.fillMaxSize()
-      ) { page ->
-        if (page == 0) {
-          // TAB 1: ANALYTICS (ZERO-SCROLL GLANCEABLE DASHBOARD)
-          AnalyticsContent(
-            analyticsState = analyticsState,
-            filteredTransactions = filteredTransactions,
-            filterState = filterState
-          )
-        } else {
-          // TAB 2: ACTIVITY
-          ActivityContent(
-            transactions = filteredTransactions,
-            filterState = filterState,
-            onResetFilter = onResetFilter,
-            onExportPdf = { handleSharePdf() },
-            onTransactionClick = { tx -> selectedTxForAction = tx }
-          )
-        }
+      if (selectedTab == 0) {
+        // TAB 1: ANALYTICS
+        AnalyticsContent(
+          analyticsState = analyticsState,
+          filteredTransactions = filteredTransactions,
+          filterState = filterState
+        )
+      } else {
+        // TAB 2: ACTIVITY
+        ActivityContent(
+          transactions = filteredTransactions,
+          filterState = filterState,
+          onResetFilter = onResetFilter,
+          onExportPdf = { handleSharePdf() },
+          onTransactionClick = { tx -> selectedTxForAction = tx }
+        )
       }
     }
+  }
   }
 
   // RowActionPopup for Transactions
@@ -283,6 +276,7 @@ fun HistoryAnalyticsScreen(
   if (showFilterSheet) {
     FilterSortSheet(
       filterState = filterState,
+      categories = categories,
       isSecretLocked = isSecretLocked,
       onDismiss = { showFilterSheet = false },
       onApplyFilter = { updated ->
@@ -303,6 +297,8 @@ fun AnalyticsContent(
   Column(
     modifier = Modifier
       .fillMaxSize()
+      .verticalScroll(rememberScrollState())
+      .padding(bottom = 80.dp)
       .testTag("analytics_content"),
     verticalArrangement = Arrangement.spacedBy(10.dp)
   ) {
@@ -766,6 +762,7 @@ fun ActivityContent(
 @Composable
 fun FilterSortSheet(
   filterState: FilterState,
+  categories: List<CategoryItem> = emptyList(),
   isSecretLocked: Boolean,
   onDismiss: () -> Unit,
   onApplyFilter: (FilterState) -> Unit,
@@ -1046,7 +1043,7 @@ fun FilterSortSheet(
 
       Spacer(modifier = Modifier.height(16.dp))
 
-      // 5. TYPE & CATEGORY
+      // 5. TYPE
       Text(
         text = "TYPE",
         fontSize = 11.5.sp,
@@ -1064,6 +1061,37 @@ fun FilterSortSheet(
             label = type.lowercase().replaceFirstChar { it.uppercase() },
             selected = localState.transactionType == type,
             onClick = { localState = localState.copy(transactionType = type) }
+          )
+        }
+      }
+
+      Spacer(modifier = Modifier.height(16.dp))
+
+      // 6. CATEGORY
+      Text(
+        text = "CATEGORY",
+        fontSize = 11.5.sp,
+        fontWeight = FontWeight.SemiBold,
+        letterSpacing = 0.5.sp,
+        color = BachatTextSecondary
+      )
+      Spacer(modifier = Modifier.height(8.dp))
+      val allAvailableCategoryNames = buildList {
+        add("All")
+        val names = (if (categories.isNotEmpty()) categories else DEFAULT_CATEGORIES).map { it.name }.distinct()
+        addAll(names)
+      }
+      Row(
+        modifier = Modifier
+          .fillMaxWidth()
+          .horizontalScroll(rememberScrollState()),
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+      ) {
+        allAvailableCategoryNames.forEach { catName ->
+          BachatFilterChip(
+            label = catName,
+            selected = localState.category.equals(catName, ignoreCase = true),
+            onClick = { localState = localState.copy(category = catName) }
           )
         }
       }

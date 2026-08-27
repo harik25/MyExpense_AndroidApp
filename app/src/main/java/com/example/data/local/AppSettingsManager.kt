@@ -20,6 +20,7 @@ data class AppSettings(
   val useBiometric: Boolean = false,
   val goalAlertsEnabled: Boolean = true,
   val showGoalsOnDashboard: Boolean = true,
+  val showBillsOnDashboard: Boolean = true,
   val lastSortField: SortField = SortField.DATE,
   val lastSortDirection: SortDirection = SortDirection.DESC
 )
@@ -32,6 +33,7 @@ class AppSettingsManager(private val context: Context) {
     val USE_BIOMETRIC = booleanPreferencesKey("use_biometric")
     val GOAL_ALERTS = booleanPreferencesKey("goal_alerts")
     val SHOW_GOALS_ON_DASHBOARD = booleanPreferencesKey("show_goals_on_dashboard")
+    val SHOW_BILLS_ON_DASHBOARD = booleanPreferencesKey("show_bills_on_dashboard")
     val SORT_FIELD = stringPreferencesKey("sort_field")
     val SORT_DIRECTION = stringPreferencesKey("sort_direction")
   }
@@ -52,6 +54,7 @@ class AppSettingsManager(private val context: Context) {
       useBiometric = prefs[Keys.USE_BIOMETRIC] ?: false,
       goalAlertsEnabled = prefs[Keys.GOAL_ALERTS] ?: true,
       showGoalsOnDashboard = prefs[Keys.SHOW_GOALS_ON_DASHBOARD] ?: true,
+      showBillsOnDashboard = prefs[Keys.SHOW_BILLS_ON_DASHBOARD] ?: true,
       lastSortField = sortField,
       lastSortDirection = sortDir
     )
@@ -90,6 +93,12 @@ class AppSettingsManager(private val context: Context) {
   suspend fun setShowGoalsOnDashboard(enabled: Boolean) {
     context.dataStore.edit { prefs ->
       prefs[Keys.SHOW_GOALS_ON_DASHBOARD] = enabled
+    }
+  }
+
+  suspend fun setShowBillsOnDashboard(enabled: Boolean) {
+    context.dataStore.edit { prefs ->
+      prefs[Keys.SHOW_BILLS_ON_DASHBOARD] = enabled
     }
   }
 

@@ -42,8 +42,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.data.model.ExpenseCategory
+import androidx.compose.foundation.horizontalScroll
+import com.example.data.model.CategoryItem
+import com.example.data.model.DEFAULT_CATEGORIES
 import com.example.data.model.Goal
+import com.example.data.model.TransactionType
 import com.example.ui.components.BachatFilterChip
 import com.example.ui.components.SegmentedToggle
 import com.example.ui.theme.BachatDanger
@@ -58,6 +61,7 @@ import com.example.ui.theme.BachatTextSecondary
 @Composable
 fun NewGoalSheet(
   editingGoal: Goal? = null,
+  categories: List<CategoryItem> = emptyList(),
   onDismiss: () -> Unit,
   onSave: (title: String, cadence: String, category: String, targetAmount: Double) -> Unit
 ) {
@@ -65,8 +69,13 @@ fun NewGoalSheet(
   val keyboardController = LocalSoftwareKeyboardController.current
   val isEditing = editingGoal != null
 
+  val effectiveCategories = if (categories.isNotEmpty()) categories else DEFAULT_CATEGORIES
+  val expenseCategories = effectiveCategories.filter { it.type == TransactionType.EXPENSE }.ifEmpty { effectiveCategories }
+
   var title by remember { mutableStateOf(editingGoal?.title ?: "Food Budget") }
-  var category by remember { mutableStateOf(editingGoal?.category ?: "Food") }
+  var category by remember {
+    mutableStateOf(editingGoal?.category ?: expenseCategories.firstOrNull()?.name ?: "Food")
+  }
   var cadence by remember { mutableStateOf(editingGoal?.cadence ?: "monthly") }
   var amountText by remember {
     mutableStateOf(if (editingGoal != null) editingGoal.targetAmount.toString().removeSuffix(".0") else "5000")
@@ -201,27 +210,16 @@ fun NewGoalSheet(
       )
       Spacer(modifier = Modifier.height(8.dp))
       Row(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+          .fillMaxWidth()
+          .horizontalScroll(rememberScrollState()),
         horizontalArrangement = Arrangement.spacedBy(8.dp)
       ) {
-        ExpenseCategory.values().take(3).forEach { cat ->
+        expenseCategories.forEach { cat ->
           BachatFilterChip(
-            label = cat.displayName,
-            selected = category.equals(cat.displayName, ignoreCase = true),
-            onClick = { category = cat.displayName }
-          )
-        }
-      }
-      Spacer(modifier = Modifier.height(8.dp))
-      Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
-      ) {
-        ExpenseCategory.values().drop(3).forEach { cat ->
-          BachatFilterChip(
-            label = cat.displayName,
-            selected = category.equals(cat.displayName, ignoreCase = true),
-            onClick = { category = cat.displayName }
+            label = cat.name,
+            selected = category.equals(cat.name, ignoreCase = true),
+            onClick = { category = cat.name }
           )
         }
       }

@@ -97,7 +97,7 @@ fun PinScreen(
       }
     )
     val promptInfo = BiometricPrompt.PromptInfo.Builder()
-      .setTitle("Bachat Security")
+      .setTitle("Expense Security")
       .setSubtitle("Unlock secret transactions")
       .setNegativeButtonText("Use PIN")
       .build()

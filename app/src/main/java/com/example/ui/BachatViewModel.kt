@@ -14,8 +14,14 @@ import com.example.data.local.AppSettingsManager
 import com.example.data.local.BachatDatabase
 import com.example.data.model.AccountTag
 import com.example.data.model.AppThemeMode
+import com.example.data.model.CategoryBudgetInsight
 import com.example.data.model.CategoryItem
+import com.example.data.model.CategoryShift
 import com.example.data.model.Goal
+import com.example.data.model.GoalStatus
+import com.example.data.model.MonthOverMonthInsight
+import com.example.data.model.OverspendAlert
+import com.example.data.model.RecurringBill
 import com.example.data.model.SortDirection
 import com.example.data.model.SortField
 import com.example.data.model.TimePeriod
@@ -83,7 +89,11 @@ data class DashboardUiState(
   val donutCategory: String = "All",
   val donutTotalExpense: Double = 0.0,
   val donutTopCategory: String = "",
-  val donutSegments: List<DonutSegment> = emptyList()
+  val donutSegments: List<DonutSegment> = emptyList(),
+  val upcomingBills: List<RecurringBill> = emptyList(),
+  val overspendAlerts: List<OverspendAlert> = emptyList(),
+  val categoryBudgets: List<CategoryBudgetInsight> = emptyList(),
+  val currentMonthKey: String = ""
 )
 
 data class CategoryAnalyticsDetail(
@@ -115,7 +125,10 @@ data class AnalyticsUiState(
   val transactionCount: Int = 0,
   val donutSegments: List<DonutSegment> = emptyList(),
   val weeklyBars: List<com.example.ui.components.SpendBarItem> = emptyList(),
-  val categoryDetails: List<CategoryAnalyticsDetail> = emptyList()
+  val categoryDetails: List<CategoryAnalyticsDetail> = emptyList(),
+  val monthOverMonthInsight: MonthOverMonthInsight? = null,
+  val categoryBudgets: List<CategoryBudgetInsight> = emptyList(),
+  val overspendAlerts: List<OverspendAlert> = emptyList()
 )
 
 sealed class BachatUiEvent {
@@ -134,6 +147,8 @@ class BachatViewModel(application: Application) : AndroidViewModel(application) 
   val expenseCategories: StateFlow<List<CategoryItem>>
   val incomeCategories: StateFlow<List<CategoryItem>>
   val appSettings: StateFlow<AppSettings>
+  val allRecurringBills: StateFlow<List<RecurringBill>>
+  val activeRecurringBills: StateFlow<List<RecurringBill>>
 
   private val _filterState = MutableStateFlow(FilterState())
   val filterState: StateFlow<FilterState> = _filterState
@@ -160,7 +175,8 @@ class BachatViewModel(application: Application) : AndroidViewModel(application) 
     repository = BachatRepository(
       db.transactionDao(),
       db.goalDao(),
-      db.categoryDao()
+      db.categoryDao(),
+      db.recurringBillDao()
     )
 
     allGoals = repository.allGoals.stateIn(
@@ -186,11 +202,89 @@ class BachatViewModel(application: Application) : AndroidViewModel(application) 
       list.filter { it.type == TransactionType.INCOME }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    allRecurringBills = repository.allRecurringBills.stateIn(
+      viewModelScope,
+      SharingStarted.WhileSubscribed(5000),
+      emptyList()
+    )
+
+    activeRecurringBills = repository.activeRecurringBills.stateIn(
+      viewModelScope,
+      SharingStarted.WhileSubscribed(5000),
+      emptyList()
+    )
+
     appSettings = settingsManager.settingsFlow.stateIn(
       viewModelScope,
       SharingStarted.WhileSubscribed(5000),
       AppSettings()
     )
+  }
+
+  // Recurring Bills Management
+  fun addRecurringBill(
+    title: String,
+    amount: Double,
+    category: String,
+    dueDayOfMonth: Int,
+    cadence: String = "Monthly",
+    accountTag: String = "UPI",
+    note: String = "",
+    isAutoPay: Boolean = false
+  ) {
+    viewModelScope.launch {
+      val bill = RecurringBill(
+        title = title,
+        amount = amount,
+        category = category,
+        dueDayOfMonth = dueDayOfMonth,
+        cadence = cadence,
+        accountTag = accountTag,
+        note = note,
+        isAutoPay = isAutoPay
+      )
+      repository.insertRecurringBill(bill)
+      _uiEvents.emit(BachatUiEvent.ShowToast("Recurring bill '$title' added"))
+    }
+  }
+
+  fun updateRecurringBill(bill: RecurringBill) {
+    viewModelScope.launch {
+      repository.updateRecurringBill(bill)
+      _uiEvents.emit(BachatUiEvent.ShowToast("Bill '${bill.title}' updated"))
+    }
+  }
+
+  fun deleteRecurringBill(bill: RecurringBill) {
+    viewModelScope.launch {
+      repository.deleteRecurringBill(bill)
+      _uiEvents.emit(BachatUiEvent.ShowToast("Bill '${bill.title}' deleted"))
+    }
+  }
+
+  fun payRecurringBill(bill: RecurringBill, createExpenseTransaction: Boolean = true) {
+    viewModelScope.launch {
+      val now = Calendar.getInstance()
+      val monthKey = String.format(Locale.US, "%d-%02d", now.get(Calendar.YEAR), now.get(Calendar.MONTH) + 1)
+      repository.markRecurringBillPaid(bill.id, monthKey)
+
+      if (createExpenseTransaction) {
+        val tx = Transaction(
+          title = bill.title,
+          amount = bill.amount,
+          type = TransactionType.EXPENSE,
+          category = bill.category,
+          accountTag = bill.accountTag,
+          timestamp = System.currentTimeMillis(),
+          isAuto = false,
+          isSecret = false,
+          note = "Recurring Bill: ${bill.title}"
+        )
+        repository.insertTransaction(tx)
+        com.example.ui.widget.BachatDonutWidgetProvider.notifyDataChanged(getApplication())
+      }
+      _uiEvents.emit(BachatUiEvent.ShowToast("Marked '${bill.title}' as paid & recorded"))
+    }
   }
 
   fun setTab(index: Int) {
@@ -220,9 +314,9 @@ class BachatViewModel(application: Application) : AndroidViewModel(application) 
     }
   }
 
-  fun updateCategory(category: CategoryItem) {
+  fun updateCategory(category: CategoryItem, oldName: String? = null) {
     viewModelScope.launch {
-      repository.updateCategory(category)
+      repository.updateCategory(category, oldName)
       _uiEvents.emit(BachatUiEvent.ShowToast("Category '${category.name}' updated"))
     }
   }
@@ -230,6 +324,17 @@ class BachatViewModel(application: Application) : AndroidViewModel(application) 
   fun deleteCategory(category: CategoryItem) {
     viewModelScope.launch {
       repository.deleteCategory(category)
+      if (_dashboardDonutCategory.value.equals(category.name, ignoreCase = true)) {
+        _dashboardDonutCategory.value = "All"
+      }
+      if (_filterState.value.category.equals(category.name, ignoreCase = true)) {
+        _filterState.value = _filterState.value.copy(category = "All")
+      }
+      if (_filterState.value.selectedCategories.any { it.equals(category.name, ignoreCase = true) }) {
+        _filterState.value = _filterState.value.copy(
+          selectedCategories = _filterState.value.selectedCategories.filterNot { it.equals(category.name, ignoreCase = true) }.toSet()
+        )
+      }
       _uiEvents.emit(BachatUiEvent.ShowToast("Category '${category.name}' removed"))
     }
   }
@@ -276,6 +381,12 @@ class BachatViewModel(application: Application) : AndroidViewModel(application) 
   fun setShowGoalsOnDashboard(enabled: Boolean) {
     viewModelScope.launch {
       settingsManager.setShowGoalsOnDashboard(enabled)
+    }
+  }
+
+  fun setShowBillsOnDashboard(enabled: Boolean) {
+    viewModelScope.launch {
+      settingsManager.setShowBillsOnDashboard(enabled)
     }
   }
 
@@ -328,14 +439,212 @@ class BachatViewModel(application: Application) : AndroidViewModel(application) 
     _dashboardDonutCategory.value = category
   }
 
+  // Category Budgets & Overspend Alerts Flow
+  val categoryBudgetInsights: StateFlow<List<CategoryBudgetInsight>> = combine(
+    allTransactions,
+    allGoals,
+    allCategories
+  ) { transactions, goals, categories ->
+    val startOfMonth = Calendar.getInstance().apply {
+      set(Calendar.DAY_OF_MONTH, 1)
+      set(Calendar.HOUR_OF_DAY, 0)
+      set(Calendar.MINUTE, 0)
+      set(Calendar.SECOND, 0)
+      set(Calendar.MILLISECOND, 0)
+    }.timeInMillis
+
+    val monthExpenses = transactions
+      .filter { !it.isSecret && it.type == TransactionType.EXPENSE && it.timestamp >= startOfMonth }
+      .groupBy { it.category.lowercase() }
+
+    val goalMap = goals.associateBy { it.category.lowercase() }
+    val relevantCategories = if (goals.isNotEmpty()) {
+      goals.map { it.category }
+    } else {
+      val expCats = categories.filter { it.type == TransactionType.EXPENSE }.map { it.name }
+      if (expCats.isNotEmpty()) expCats else listOf("Food", "Housing", "Transport", "Shopping", "Entertainment", "Personal/Health")
+    }
+
+    relevantCategories.distinctBy { it.lowercase() }.map { catName ->
+      val spent = monthExpenses[catName.lowercase()]?.sumOf { it.amount } ?: 0.0
+      val goal = goalMap[catName.lowercase()]
+      val limit = goal?.targetAmount ?: 5000.0
+      val remaining = (limit - spent).coerceAtLeast(0.0)
+      val pct = if (limit > 0) (spent / limit) * 100.0 else 0.0
+
+      val status = when {
+        spent >= limit -> GoalStatus.OVER_BUDGET
+        spent >= 0.8 * limit -> GoalStatus.NEAR_LIMIT
+        else -> GoalStatus.ON_TRACK
+      }
+
+      CategoryBudgetInsight(
+        category = catName,
+        budgetLimit = limit,
+        spentAmount = spent,
+        remainingAmount = remaining,
+        percentageUsed = pct,
+        status = status
+      )
+    }.sortedByDescending { it.percentageUsed }
+  }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+  val overspendAlerts: StateFlow<List<OverspendAlert>> = categoryBudgetInsights.map { insights ->
+    insights.filter { it.percentageUsed >= 80.0 }.map { insight ->
+      OverspendAlert(
+        category = insight.category,
+        budgetLimit = insight.budgetLimit,
+        spentAmount = insight.spentAmount,
+        overspendAmount = (insight.spentAmount - insight.budgetLimit).coerceAtLeast(0.0),
+        percentageUsed = insight.percentageUsed,
+        isExceeded = insight.percentageUsed >= 100.0
+      )
+    }
+  }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+  // Month-over-Month Insights Flow
+  val monthOverMonthInsight: StateFlow<MonthOverMonthInsight> = combine(
+    allTransactions,
+    allCategories
+  ) { transactions, _ ->
+    val validTx = transactions.filter { !it.isSecret && it.type == TransactionType.EXPENSE }
+    val now = Calendar.getInstance()
+    val totalDaysInThisMonth = now.getActualMaximum(Calendar.DAY_OF_MONTH)
+    val daysElapsed = now.get(Calendar.DAY_OF_MONTH).coerceAtLeast(1)
+
+    val thisMonthStart = Calendar.getInstance().apply {
+      set(Calendar.DAY_OF_MONTH, 1)
+      set(Calendar.HOUR_OF_DAY, 0)
+      set(Calendar.MINUTE, 0)
+      set(Calendar.SECOND, 0)
+      set(Calendar.MILLISECOND, 0)
+    }.timeInMillis
+
+    val lastMonthStart = Calendar.getInstance().apply {
+      add(Calendar.MONTH, -1)
+      set(Calendar.DAY_OF_MONTH, 1)
+      set(Calendar.HOUR_OF_DAY, 0)
+      set(Calendar.MINUTE, 0)
+      set(Calendar.SECOND, 0)
+      set(Calendar.MILLISECOND, 0)
+    }.timeInMillis
+
+    val lastMonthEnd = thisMonthStart - 1
+    val lastMonthCal = Calendar.getInstance().apply { add(Calendar.MONTH, -1) }
+    val totalDaysInLastMonth = lastMonthCal.getActualMaximum(Calendar.DAY_OF_MONTH)
+
+    val thisMonthTx = validTx.filter { it.timestamp >= thisMonthStart }
+    val lastMonthTx = validTx.filter { it.timestamp in lastMonthStart..lastMonthEnd }
+
+    val thisMonthTotal = thisMonthTx.sumOf { it.amount }
+    val lastMonthTotal = lastMonthTx.sumOf { it.amount }
+    val diffAmount = thisMonthTotal - lastMonthTotal
+    val percentageChange = if (lastMonthTotal > 0) {
+      kotlin.math.abs(diffAmount) / lastMonthTotal * 100.0
+    } else 0.0
+    val isLower = thisMonthTotal <= lastMonthTotal
+
+    val thisMonthDailyAvg = if (daysElapsed > 0) thisMonthTotal / daysElapsed else 0.0
+    val lastMonthDailyAvg = if (totalDaysInLastMonth > 0) lastMonthTotal / totalDaysInLastMonth else 0.0
+    val projectedMonthEndTotal = thisMonthDailyAvg * totalDaysInThisMonth
+
+    // Find Peak Spend Day in This Month
+    val dayExpenses = thisMonthTx.groupBy {
+      val c = Calendar.getInstance().apply { timeInMillis = it.timestamp }
+      c.get(Calendar.DAY_OF_MONTH)
+    }
+    val peakEntry = dayExpenses.maxByOrNull { entry -> entry.value.sumOf { it.amount } }
+    var peakDayLabel = ""
+    var peakDayAmount = 0.0
+    if (peakEntry != null) {
+      val peakCal = Calendar.getInstance().apply { set(Calendar.DAY_OF_MONTH, peakEntry.key) }
+      val sdf = SimpleDateFormat("EEE, MMM d", Locale.getDefault())
+      peakDayLabel = sdf.format(peakCal.time)
+      peakDayAmount = peakEntry.value.sumOf { it.amount }
+    }
+
+    // Compute Category Shifts
+    val thisMonthByCat = thisMonthTx.groupBy { it.category }
+    val lastMonthByCat = lastMonthTx.groupBy { it.category }
+    val allDistinctCats = (thisMonthByCat.keys + lastMonthByCat.keys).distinct()
+
+    val categoryShifts = allDistinctCats.mapNotNull { cat ->
+      val currentAmt = thisMonthByCat[cat]?.sumOf { it.amount } ?: 0.0
+      val lastAmt = lastMonthByCat[cat]?.sumOf { it.amount } ?: 0.0
+      val shiftDiff = currentAmt - lastAmt
+      if (currentAmt == 0.0 && lastAmt == 0.0) null
+      else {
+        val pct = if (lastAmt > 0) kotlin.math.abs(shiftDiff) / lastAmt * 100.0 else 100.0
+        CategoryShift(
+          category = cat,
+          currentMonthAmount = currentAmt,
+          lastMonthAmount = lastAmt,
+          diffAmount = shiftDiff,
+          percentageChange = pct,
+          isIncrease = shiftDiff > 0
+        )
+      }
+    }.sortedByDescending { kotlin.math.abs(it.diffAmount) }
+
+    // Dynamic smart takeaways
+    val takeaways = mutableListOf<String>()
+    if (isLower && percentageChange > 0) {
+      takeaways.add("Spending is trending ${percentageChange.toInt()}% lower than last month.")
+    } else if (percentageChange > 0) {
+      takeaways.add("Spending is up ${percentageChange.toInt()}% compared to last month.")
+    }
+
+    if (peakDayLabel.isNotBlank()) {
+      takeaways.add("Highest spending day was $peakDayLabel with ₹${peakDayAmount.toInt()}.")
+    }
+
+    val topIncreasedCat = categoryShifts.firstOrNull { it.isIncrease }
+    if (topIncreasedCat != null && topIncreasedCat.percentageChange > 5) {
+      takeaways.add("${topIncreasedCat.category} increased by ${topIncreasedCat.percentageChange.toInt()}% vs last month.")
+    }
+
+    MonthOverMonthInsight(
+      thisMonthTotal = thisMonthTotal,
+      lastMonthTotal = lastMonthTotal,
+      diffAmount = diffAmount,
+      percentageChange = percentageChange,
+      isLower = isLower,
+      thisMonthDailyAvg = thisMonthDailyAvg,
+      lastMonthDailyAvg = lastMonthDailyAvg,
+      projectedMonthEndTotal = projectedMonthEndTotal,
+      peakSpendDayLabel = peakDayLabel,
+      peakSpendDayAmount = peakDayAmount,
+      categoryShifts = categoryShifts,
+      keyTakeaways = takeaways
+    )
+  }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), MonthOverMonthInsight())
+
   // Dashboard calculation
   val dashboardState: StateFlow<DashboardUiState> = combine(
     allTransactions,
     allGoals,
     allCategories,
+    activeRecurringBills,
+    overspendAlerts,
+    categoryBudgetInsights,
     _dashboardDonutPeriod,
     _dashboardDonutCategory
-  ) { transactions, goals, categories, donutPeriod, donutCategory ->
+  ) { args: Array<Any> ->
+    @Suppress("UNCHECKED_CAST")
+    val transactions = args[0] as List<Transaction>
+    @Suppress("UNCHECKED_CAST")
+    val goals = args[1] as List<Goal>
+    @Suppress("UNCHECKED_CAST")
+    val categories = args[2] as List<CategoryItem>
+    @Suppress("UNCHECKED_CAST")
+    val bills = args[3] as List<RecurringBill>
+    @Suppress("UNCHECKED_CAST")
+    val alerts = args[4] as List<OverspendAlert>
+    @Suppress("UNCHECKED_CAST")
+    val budgetInsights = args[5] as List<CategoryBudgetInsight>
+    val donutPeriod = args[6] as TimePeriod
+    val donutCategory = args[7] as String
+
     val categoryColorMap = categories.associate { it.name.lowercase() to Color(it.colorHex) }
 
     val startOfToday = Calendar.getInstance().apply {
@@ -438,6 +747,24 @@ class BachatViewModel(application: Application) : AndroidViewModel(application) 
 
     val donutTopCategory = sortedCategoryEntries.firstOrNull()?.key ?: ""
 
+    val now = Calendar.getInstance()
+    val todayDay = now.get(Calendar.DAY_OF_MONTH)
+    val currentMonthKey = String.format(Locale.US, "%d-%02d", now.get(Calendar.YEAR), now.get(Calendar.MONTH) + 1)
+
+    // Dashboard only surfaces bills that are unpaid and due in <= 2 days or overdue
+    val dashboardBills = bills.filter { bill ->
+      if (bill.isPaused) return@filter false
+      if (bill.isPaidForCurrentMonth(currentMonthKey)) return@filter false
+      val daysUntilDue = bill.dueDayOfMonth - todayDay
+      // Due within 2 days (0, 1, 2) or Overdue (< 0)
+      daysUntilDue <= 2
+    }.sortedWith(
+      compareBy<RecurringBill> { bill ->
+        val daysUntilDue = bill.dueDayOfMonth - todayDay
+        daysUntilDue
+      }
+    )
+
     DashboardUiState(
       totalBalance = totalBalance,
       todayExpense = todayExpense,
@@ -450,7 +777,11 @@ class BachatViewModel(application: Application) : AndroidViewModel(application) 
       donutCategory = donutCategory,
       donutTotalExpense = donutTotalSpent,
       donutTopCategory = donutTopCategory,
-      donutSegments = donutSegments
+      donutSegments = donutSegments,
+      upcomingBills = dashboardBills,
+      overspendAlerts = alerts,
+      categoryBudgets = budgetInsights,
+      currentMonthKey = currentMonthKey
     )
   }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), DashboardUiState())
 
@@ -544,8 +875,22 @@ class BachatViewModel(application: Application) : AndroidViewModel(application) 
   val analyticsState: StateFlow<AnalyticsUiState> = combine(
     allTransactions,
     filterState,
-    allCategories
-  ) { transactions, filter, categories ->
+    allCategories,
+    monthOverMonthInsight,
+    categoryBudgetInsights,
+    overspendAlerts
+  ) { args: Array<Any> ->
+    @Suppress("UNCHECKED_CAST")
+    val transactions = args[0] as List<Transaction>
+    val filter = args[1] as FilterState
+    @Suppress("UNCHECKED_CAST")
+    val categories = args[2] as List<CategoryItem>
+    val momInsight = args[3] as MonthOverMonthInsight
+    @Suppress("UNCHECKED_CAST")
+    val budgetInsights = args[4] as List<CategoryBudgetInsight>
+    @Suppress("UNCHECKED_CAST")
+    val alerts = args[5] as List<OverspendAlert>
+
     val categoryColorMap = categories.associate { it.name.lowercase() to Color(it.colorHex) }
 
     // Filter by Visibility
@@ -971,7 +1316,10 @@ class BachatViewModel(application: Application) : AndroidViewModel(application) 
       transactionCount = currentPeriodTx.size,
       donutSegments = segments,
       weeklyBars = weeklyBars,
-      categoryDetails = categoryDetails
+      categoryDetails = categoryDetails,
+      monthOverMonthInsight = momInsight,
+      categoryBudgets = budgetInsights,
+      overspendAlerts = alerts
     )
   }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), AnalyticsUiState())
 

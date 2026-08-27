@@ -7,9 +7,13 @@ PORT = 3000
 
 def get_apk_path():
     candidates = [
+        "/.build-outputs/app-debug.apk",
+        ".build-outputs/app-debug.apk",
+        "/app/applet/.build-outputs/app-debug.apk",
+        "/app/build/outputs/apk/debug/app-debug.apk",
+        "app/build/outputs/apk/debug/app-debug.apk",
         "/app/applet/app/build/outputs/apk/debug/app-debug.apk",
-        "/app/applet/app/apk/app-debug.apk",
-        "/app/applet/.build-outputs/app-debug.apk"
+        "/app/applet/app/apk/app-debug.apk"
     ]
     for p in candidates:
         if os.path.exists(p):
@@ -19,12 +23,12 @@ def get_apk_path():
 class APKDownloadHandler(http.server.BaseHTTPRequestHandler):
     def do_HEAD(self):
         apk_path = get_apk_path()
-        if self.path in ["/download", "/download/", "/app-debug.apk", "/Bachat-v2.0.apk"]:
+        if self.path in ["/download", "/download/", "/app-debug.apk", "/Bachat-v2.0.apk", "/My-Expense.apk", "/Expense.apk"]:
             if apk_path and os.path.exists(apk_path):
                 file_size = os.path.getsize(apk_path)
                 self.send_response(200)
                 self.send_header("Content-Type", "application/vnd.android.package-archive")
-                self.send_header("Content-Disposition", 'attachment; filename="Bachat-v2.0.apk"')
+                self.send_header("Content-Disposition", 'attachment; filename="My-Expense.apk"')
                 self.send_header("Content-Length", str(file_size))
                 self.send_header("Cache-Control", "no-cache, no-store, must-revalidate")
                 self.end_headers()
@@ -40,12 +44,12 @@ class APKDownloadHandler(http.server.BaseHTTPRequestHandler):
     def do_GET(self):
         apk_path = get_apk_path()
         
-        if self.path in ["/download", "/download/", "/app-debug.apk", "/Bachat-v2.0.apk"]:
+        if self.path in ["/download", "/download/", "/app-debug.apk", "/Bachat-v2.0.apk", "/My-Expense.apk", "/Expense.apk"]:
             if apk_path and os.path.exists(apk_path):
                 file_size = os.path.getsize(apk_path)
                 self.send_response(200)
                 self.send_header("Content-Type", "application/vnd.android.package-archive")
-                self.send_header("Content-Disposition", 'attachment; filename="Bachat-v2.0.apk"')
+                self.send_header("Content-Disposition", 'attachment; filename="My-Expense.apk"')
                 self.send_header("Content-Length", str(file_size))
                 self.send_header("Cache-Control", "no-cache, no-store, must-revalidate")
                 self.end_headers()
@@ -66,7 +70,7 @@ class APKDownloadHandler(http.server.BaseHTTPRequestHandler):
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Download Bachat v2.0 APK</title>
+    <title>Download My Expense APK</title>
     <style>
         * {{ margin: 0; padding: 0; box-sizing: border-box; }}
         body {{
@@ -137,7 +141,7 @@ class APKDownloadHandler(http.server.BaseHTTPRequestHandler):
 <body>
     <div class="card">
         <div class="icon">₹</div>
-        <h1>Bachat Expense Tracker</h1>
+        <h1>My Expense Tracker</h1>
         <p>Version 2.0 • Full Signed Android Package</p>
         <a href="/download" class="btn">Direct Download APK ({file_size_mb} MB)</a>
         <div class="info">

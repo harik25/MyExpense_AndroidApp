@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -130,44 +131,51 @@ fun AllGoalsScreen(
     containerColor = Color.White,
     modifier = modifier.testTag("all_goals_screen")
   ) { padding ->
-    LazyColumn(
+    Box(
       modifier = Modifier
         .fillMaxSize()
-        .padding(padding)
-        .padding(horizontal = 20.dp),
-      verticalArrangement = Arrangement.spacedBy(16.dp)
+        .padding(padding),
+      contentAlignment = Alignment.TopCenter
     ) {
-      item {
-        Spacer(modifier = Modifier.height(4.dp))
-      }
-
-      if (goals.isEmpty()) {
+      LazyColumn(
+        modifier = Modifier
+          .fillMaxSize()
+          .widthIn(max = 680.dp)
+          .padding(horizontal = 20.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+      ) {
         item {
-          EmptyState(
-            icon = Icons.Default.TrackChanges,
-            message = "No goals yet",
-            helperText = "Tap + New Goal below to set your first monthly spending limit"
-          )
+          Spacer(modifier = Modifier.height(4.dp))
         }
-      } else {
-        items(goals) { goal ->
-          val spent = transactions.filter {
-            !it.isSecret &&
-            it.type == TransactionType.EXPENSE &&
-            it.category.equals(goal.category, ignoreCase = true) &&
-            it.timestamp >= startOfMonth
-          }.sumOf { it.amount }
 
-          GoalCard(
-            goal = goal,
-            spentAmount = spent,
-            onClick = { selectedGoalForAction = goal }
-          )
+        if (goals.isEmpty()) {
+          item {
+            EmptyState(
+              icon = Icons.Default.TrackChanges,
+              message = "No goals yet",
+              helperText = "Tap + New Goal below to set your first monthly spending limit"
+            )
+          }
+        } else {
+          items(goals) { goal ->
+            val spent = transactions.filter {
+              !it.isSecret &&
+              it.type == TransactionType.EXPENSE &&
+              it.category.equals(goal.category, ignoreCase = true) &&
+              it.timestamp >= startOfMonth
+            }.sumOf { it.amount }
+
+            GoalCard(
+              goal = goal,
+              spentAmount = spent,
+              onClick = { selectedGoalForAction = goal }
+            )
+          }
         }
-      }
 
-      item {
-        Spacer(modifier = Modifier.height(100.dp))
+        item {
+          Spacer(modifier = Modifier.height(100.dp))
+        }
       }
     }
   }

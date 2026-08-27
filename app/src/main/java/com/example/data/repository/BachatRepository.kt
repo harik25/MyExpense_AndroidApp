@@ -2,10 +2,12 @@ package com.example.data.repository
 
 import com.example.data.local.CategoryDao
 import com.example.data.local.GoalDao
+import com.example.data.local.RecurringBillDao
 import com.example.data.local.TransactionDao
 import com.example.data.model.CategoryItem
 import com.example.data.model.DEFAULT_CATEGORIES
 import com.example.data.model.Goal
+import com.example.data.model.RecurringBill
 import com.example.data.model.Transaction
 import com.example.data.model.TransactionType
 import kotlinx.coroutines.flow.Flow
@@ -13,11 +15,14 @@ import kotlinx.coroutines.flow.Flow
 class BachatRepository(
   private val transactionDao: TransactionDao,
   private val goalDao: GoalDao,
-  private val categoryDao: CategoryDao
+  private val categoryDao: CategoryDao,
+  private val recurringBillDao: RecurringBillDao
 ) {
   val allTransactions: Flow<List<Transaction>> = transactionDao.getAllTransactions()
   val allGoals: Flow<List<Goal>> = goalDao.getAllGoals()
   val allCategories: Flow<List<CategoryItem>> = categoryDao.getAllCategories()
+  val allRecurringBills: Flow<List<RecurringBill>> = recurringBillDao.getAllBills()
+  val activeRecurringBills: Flow<List<RecurringBill>> = recurringBillDao.getActiveBills()
 
   suspend fun insertTransaction(transaction: Transaction): Long {
     return transactionDao.insertTransaction(transaction)
@@ -68,8 +73,13 @@ class BachatRepository(
     categoryDao.insertCategories(categories)
   }
 
-  suspend fun updateCategory(category: CategoryItem) {
+  suspend fun updateCategory(category: CategoryItem, oldName: String? = null) {
     categoryDao.updateCategory(category)
+    if (!oldName.isNullOrBlank() && !oldName.equals(category.name, ignoreCase = true)) {
+      transactionDao.updateCategoryName(oldName, category.name)
+      goalDao.updateCategoryName(oldName, category.name)
+      recurringBillDao.updateCategoryName(oldName, category.name)
+    }
   }
 
   suspend fun deleteCategory(category: CategoryItem) {
@@ -85,9 +95,35 @@ class BachatRepository(
     categoryDao.insertCategories(DEFAULT_CATEGORIES)
   }
 
+  // Recurring bills management
+  suspend fun insertRecurringBill(bill: RecurringBill): Long {
+    return recurringBillDao.insertBill(bill)
+  }
+
+  suspend fun insertRecurringBills(bills: List<RecurringBill>) {
+    recurringBillDao.insertBills(bills)
+  }
+
+  suspend fun updateRecurringBill(bill: RecurringBill) {
+    recurringBillDao.updateBill(bill)
+  }
+
+  suspend fun deleteRecurringBill(bill: RecurringBill) {
+    recurringBillDao.deleteBill(bill)
+  }
+
+  suspend fun deleteRecurringBillById(id: Long) {
+    recurringBillDao.deleteBillById(id)
+  }
+
+  suspend fun markRecurringBillPaid(id: Long, monthKey: String) {
+    recurringBillDao.markBillPaid(id, monthKey)
+  }
+
   suspend fun clearAll() {
     transactionDao.clearAll()
     goalDao.clearAll()
     categoryDao.clearAll()
+    recurringBillDao.clearAll()
   }
 }
